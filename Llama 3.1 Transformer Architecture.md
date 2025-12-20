@@ -864,9 +864,9 @@ Understanding these architectural choices is essential for:
 The decoder-only transformer with these enhancements has become the de facto standard for large language models, balancing performance, efficiency, and scalability.
 
 
-#### In Practice  - Running on Colab T4 GPU tiers
+## In Practice  - Running on Colab T4 GPU 
 
-**bitsandbytes for Quantization**
+**Install bitsandbytes for Quantization**
 ```
 !pip install -q --upgrade bitsandbytes
 ```
@@ -911,8 +911,9 @@ login(hf_token, add_to_git_credential=True)
 print(f"Memory footprint: {base_model.get_memory_footprint() / 1e9:,.1f} GB")
 ```
 
-
-*** Example of memory Footprint**
+---
+ ***Example of memory Footprint***
+ ---
 ```
 LlamaForCausalLM(
   (model): LlamaModel(
