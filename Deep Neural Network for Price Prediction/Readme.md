@@ -824,14 +824,14 @@ Using cuda  # or mps/cpu depending on hardware
 
 ---
 
-### 5: Training Instructions (Markdown)
+### 5: Training Instructions 
 
-Thisprovides two options:
+This provides two options:
 
 #### Option 1: Train from Scratch
 ```python
 runner.train(epochs=5)
-runner.save('deep_neural_network.pth')
+runner.save('deep_neural_network.pth') 
 ```
 
 **Training Details**:
@@ -864,9 +864,9 @@ for epoch in range(1, epochs + 1):
 
 #### Option 2: Download Pre-trained Weights (Recommended)
 - **File**: `deep_neural_network.pth`
-- **Location**: Google Drive link provided
+- **Location**: [Google Drive link provided ](https://drive.google.com/drive/folders/1uq5C9edPIZ1973dArZiEO-VE13F7m8MK)
 - **Size**: ~512 MB (134M parameters × 4 bytes/float32)
-- **Placement**: Week 6 directory
+- **Placement**: root directory
 
 **Why Pre-trained Weights?**
 - Saves 4 hours of computation
