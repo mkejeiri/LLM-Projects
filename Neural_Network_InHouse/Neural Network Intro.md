@@ -384,7 +384,7 @@ for epoch in range(num_epochs):
   - May never converge precisely
 - **Usage**: Rarely used in practice
 
-#### 3. Mini-Batch SGD (Standard Practice)
+#### 3. Mini-Batch SGD (Stochastic Gradient Descent - Standard Practice)
 
 ```python
 # Use SMALL BATCHES (e.g., 64 examples)
@@ -406,7 +406,7 @@ for epoch in range(num_epochs):
   - None really - this is the standard
 - **Usage**: This is what everyone uses (confusingly still called "SGD")
 
-### How SGD Works Step-by-Step
+### How SGD (Stochastic Gradient Descent) Works Step-by-Step
 
 Using the code with `batch_size=64`:
 
@@ -654,7 +654,7 @@ with torch.no_grad():
 
 **Backward Pass**: Computes gradients using backpropagation
 
-**Optimizer**: Updates weights using gradients (SGD, Adam, etc.)
+**Optimizer**: Updates weights using gradients (SGD, Adam or  Adaptive Moment Estimation, etc.)
 
 **Batch Processing**: Process multiple examples simultaneously for efficiency
 
