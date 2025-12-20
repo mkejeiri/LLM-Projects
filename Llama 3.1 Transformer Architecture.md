@@ -900,9 +900,6 @@ DATA_USER = "ed-donner"
 DATASET_NAME = f"{DATA_USER}/items_prompts_lite" if LITE_MODE else f"{DATA_USER}/items_prompts_full"
 
 
-FINETUNED_MODEL = f"ed-donner/price-2025-11-30_15.10.55-lite"
-
-
 # Log in to HuggingFace
 
 hf_token = userdata.get('HF_TOKEN')
