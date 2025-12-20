@@ -766,9 +766,11 @@ FLOPs = 2 × d_model × d_ff × 3  # gate, up, down projections
       ≈ 352B FLOPs per token
 ```
 
+
 **Total per layer**: ~436B FLOPs
+
 **Total for 32 layers**: ~14 TFLOPs per token
-```
+
 ---
 
 ## 10. Training and Inference Considerations
@@ -863,6 +865,11 @@ The decoder-only transformer with these enhancements has become the de facto sta
 
 
 #### In Practice  - Running on Colab T4 GPU tiers
+
+**bitsandbytes for Quantization**
+```
+!pip install -q --upgrade bitsandbytes
+```
 
 ```python
 # imports
