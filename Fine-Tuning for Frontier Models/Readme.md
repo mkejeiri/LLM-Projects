@@ -2,8 +2,7 @@
 
 ## Basic Concepts
 
-### Fine-tuning
-**Definition**: The process of taking a pre-trained model and continuing training on a specific dataset to adapt it to a particular task or domain. Unlike training from scratch, fine-tuning leverages the knowledge already encoded in the model's weights.
+### Fine-tuning**Definition**: The process of taking a pre-trained model and continuing training on a specific dataset to adapt it to a particular task or domain. Unlike training from scratch, fine-tuning leverages the knowledge already encoded in the model's weights.
 
 **Why Fine-tune?**
 - Domain adaptation: Specializes general models for specific tasks
@@ -815,8 +814,7 @@ This notebook demonstrates the complete fine-tuning pipeline:
 
 ```python
 """
-Week 6 Day 5: Fine-tuning GPT-4.1-nano for Price Prediction
-Extracted from day5.ipynb notebook
+Fine-tuning GPT-4.1-nano for Price Prediction - Complete code
 """
 
 import os
