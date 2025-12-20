@@ -27,7 +27,7 @@
 
 ## Code Walkthrough
 
-### Cell 1: Imports
+### Imports
 
 ```python
 import os
@@ -55,7 +55,7 @@ from pricer.evaluator import evaluate
 
 ---
 
-### Cell 2: Environment Setup
+### Environment Setup
 
 ```python
 LITE_MODE = False
@@ -88,7 +88,7 @@ login(hf_token, add_to_git_credential=True)
 
 ---
 
-### Cell 3: Dataset Loading
+### Dataset Loading
 
 ```python
 username = "ed-donner"
@@ -119,7 +119,7 @@ print(f"Loaded {len(train):,} training items, {len(val):,} validation items, {le
 
 ---
 
-### Cell 4: OpenAI Client Initialization
+### OpenAI Client Initialization
 
 ```python
 openai = OpenAI()
@@ -136,7 +136,7 @@ openai = OpenAI()
 
 ---
 
-### Cell 5: Data Subset Selection
+### Data Subset Selection
 
 ```python
 fine_tune_train = train[:100]
@@ -157,7 +157,7 @@ fine_tune_validation = val[:50]
 
 ---
 
-### Cell 6: Check Training Size
+### Check Training Size
 
 ```python
 len(fine_tune_train)
@@ -171,7 +171,7 @@ len(fine_tune_train)
 
 ## Step 1: Data Preparation
 
-### Cell 7: Message Formatting Function
+### Message Formatting Function
 
 ```python
 def messages_for(item):
@@ -205,7 +205,7 @@ def messages_for(item):
 
 ---
 
-### Cell 8: Test Message Formatting
+### Test Message Formatting
 
 ```python
 messages_for(fine_tune_train[0])
@@ -229,7 +229,7 @@ messages_for(fine_tune_train[0])
 
 ---
 
-### Cell 9: JSONL Conversion Function
+### JSONL Conversion Function
 
 ```python
 def make_jsonl(items):
@@ -272,7 +272,7 @@ def make_jsonl(items):
 
 ---
 
-### Cell 10: Test JSONL Generation
+### Test JSONL Generation
 
 ```python
 print(make_jsonl(train[:3]))
@@ -289,7 +289,7 @@ print(make_jsonl(train[:3]))
 
 ---
 
-### Cell 11: File Writing Function
+### File Writing Function
 
 ```python
 def write_jsonl(items, filename):
@@ -313,7 +313,7 @@ def write_jsonl(items, filename):
 
 ---
 
-### Cell 12-13: Write Training and Validation Files
+###  Write Training and Validation Files
 
 ```python
 write_jsonl(fine_tune_train, "jsonl/fine_tune_train.jsonl")
@@ -327,7 +327,7 @@ write_jsonl(fine_tune_validation, "jsonl/fine_tune_validation.jsonl")
 
 ---
 
-### Cell 14: Upload Training File
+### Upload Training File
 
 ```python
 with open("jsonl/fine_tune_train.jsonl", "rb") as f:
@@ -354,7 +354,7 @@ with open("jsonl/fine_tune_train.jsonl", "rb") as f:
 
 ---
 
-### Cell 15: Inspect Training File Object
+### Inspect Training File Object
 
 ```python
 train_file
@@ -380,7 +380,7 @@ FileObject(
 
 ---
 
-### Cell 16-17: Upload Validation File
+### Upload Validation File
 
 ```python
 with open("jsonl/fine_tune_validation.jsonl", "rb") as f:
@@ -395,7 +395,7 @@ validation_file
 
 ## Step 2: Fine-tuning Job Creation
 
-### Cell 18: Create Fine-tuning Job
+### Create Fine-tuning Job
 
 ```python
 openai.fine_tuning.jobs.create(
@@ -437,7 +437,7 @@ openai.fine_tuning.jobs.create(
 
 ---
 
-### Cell 19: List Recent Jobs
+### List Recent Jobs
 
 ```python
 openai.fine_tuning.jobs.list(limit=1)
@@ -470,7 +470,7 @@ SyncCursorPage(
 
 ---
 
-### Cell 20: Extract Job ID
+### Extract Job ID
 
 ```python
 job_id = openai.fine_tuning.jobs.list(limit=1).data[0].id
@@ -486,7 +486,7 @@ job_id = openai.fine_tuning.jobs.list(limit=1).data[0].id
 
 ---
 
-### Cell 21: Display Job ID
+### Display Job ID
 
 ```python
 job_id
@@ -496,7 +496,7 @@ job_id
 
 ---
 
-### Cell 22: Retrieve Job Details
+### Retrieve Job Details
 
 ```python
 openai.fine_tuning.jobs.retrieve(job_id)
@@ -542,7 +542,7 @@ FineTuningJob(
 
 ---
 
-### Cell 23: List Training Events
+### List Training Events
 
 ```python
 openai.fine_tuning.jobs.list_events(fine_tuning_job_id=job_id, limit=10).data
@@ -589,7 +589,7 @@ openai.fine_tuning.jobs.list_events(fine_tuning_job_id=job_id, limit=10).data
 
 ## Step 3: Inference with Fine-tuned Model
 
-### Cell 24: Retrieve Fine-tuned Model Name
+### Retrieve Fine-tuned Model Name
 
 ```python
 fine_tuned_model_name = openai.fine_tuning.jobs.retrieve(job_id).fine_tuned_model
@@ -606,7 +606,7 @@ fine_tuned_model_name = openai.fine_tuning.jobs.retrieve(job_id).fine_tuned_mode
 
 ---
 
-### Cell 25: Display Model Name
+### Display Model Name
 
 ```python
 fine_tuned_model_name
@@ -616,7 +616,7 @@ fine_tuned_model_name
 
 ---
 
-### Cell 26: Test Message Function
+### Test Message Function
 
 ```python
 def test_messages_for(item):
@@ -633,7 +633,7 @@ def test_messages_for(item):
 
 ---
 
-### Cell 27: Test Message Formatting
+### Test Message Formatting
 
 ```python
 test_messages_for(test[0])
@@ -651,7 +651,7 @@ test_messages_for(test[0])
 
 ---
 
-### Cell 28: Inference Function
+### Inference Function
 
 ```python
 def gpt_4__1_nano_fine_tuned(item):
@@ -688,7 +688,7 @@ def gpt_4__1_nano_fine_tuned(item):
 
 ---
 
-### Cell 29: Single Prediction Test
+### Single Prediction Test
 
 ```python
 print(test[0].price)
@@ -713,7 +713,7 @@ $295.00
 
 ---
 
-### Cell 30: Full Evaluation
+### Full Evaluation
 
 ```python
 evaluate(gpt_4__1_nano_fine_tuned, test)
@@ -732,7 +732,7 @@ evaluate(gpt_4__1_nano_fine_tuned, test)
 
 ---
 
-### Cell 31: Performance Comparison
+### Performance Comparison
 
 ```python
 # 96.58 - mini 200
@@ -810,3 +810,230 @@ This notebook demonstrates the complete fine-tuning pipeline:
 
 - **Failed experiments are a natural part of data science.**
 - **Your mission:** Experiment with hyperparameters and see if you can achieve improvements.
+
+
+
+```python
+"""
+Week 6 Day 5: Fine-tuning GPT-4.1-nano for Price Prediction
+Extracted from day5.ipynb notebook
+"""
+
+import os
+import re
+import json
+from dotenv import load_dotenv
+from huggingface_hub import login
+from openai import OpenAI
+from pricer.items import Item
+from pricer.evaluator import evaluate
+
+
+# ============================================================================
+# ENVIRONMENT SETUP
+# ============================================================================
+
+LITE_MODE = False
+
+load_dotenv(override=True)
+hf_token = os.environ['HF_TOKEN']
+login(hf_token, add_to_git_credential=True)
+
+
+# ============================================================================
+# DATASET LOADING
+# ============================================================================
+
+username = "ed-donner"
+dataset = f"{username}/items_lite" if LITE_MODE else f"{username}/items_full"
+
+train, val, test = Item.from_hub(dataset)
+
+print(f"Loaded {len(train):,} training items, {len(val):,} validation items, {len(test):,} test items")
+
+
+# ============================================================================
+# OPENAI CLIENT INITIALIZATION
+# ============================================================================
+
+openai = OpenAI()
+
+
+# ============================================================================
+# DATA SUBSET SELECTION
+# ============================================================================
+
+# OpenAI recommends fine-tuning with populations of 50-100 examples
+# But as our examples are very small, I'm suggesting we go with 100 examples (and 1 epoch)
+
+fine_tune_train = train[:100]
+fine_tune_validation = val[:50]
+
+print(f"Fine-tuning with {len(fine_tune_train)} training examples")
+
+
+# ============================================================================
+# STEP 1: DATA PREPARATION
+# ============================================================================
+
+def messages_for(item):
+    """Convert an Item to ChatML format for training"""
+    message = f"Estimate the price of this product. Respond with the price, no explanation\n\n{item.summary}"
+    return [
+        {"role": "user", "content": message},
+        {"role": "assistant", "content": f"${item.price:.2f}"}
+    ]
+
+
+def make_jsonl(items):
+    """Convert items into JSONL format for OpenAI fine-tuning"""
+    result = ""
+    for item in items:
+        messages = messages_for(item)
+        messages_str = json.dumps(messages)
+        result += '{"messages": ' + messages_str +'}\n'
+    return result.strip()
+
+
+def write_jsonl(items, filename):
+    """Convert items into jsonl and write them to a file"""
+    with open(filename, "w") as f:
+        jsonl = make_jsonl(items)
+        f.write(jsonl)
+
+
+# Test message formatting
+print("\nSample training message:")
+print(messages_for(fine_tune_train[0]))
+
+# Test JSONL generation
+print("\nSample JSONL (first 3 items):")
+print(make_jsonl(train[:3]))
+
+# Write training and validation files
+write_jsonl(fine_tune_train, "jsonl/fine_tune_train.jsonl")
+write_jsonl(fine_tune_validation, "jsonl/fine_tune_validation.jsonl")
+print("\nJSONL files written successfully")
+
+
+# ============================================================================
+# UPLOAD FILES TO OPENAI
+# ============================================================================
+
+with open("jsonl/fine_tune_train.jsonl", "rb") as f:
+    train_file = openai.files.create(file=f, purpose="fine-tune")
+
+print(f"\nTraining file uploaded: {train_file.id}")
+
+with open("jsonl/fine_tune_validation.jsonl", "rb") as f:
+    validation_file = openai.files.create(file=f, purpose="fine-tune")
+
+print(f"Validation file uploaded: {validation_file.id}")
+
+
+# ============================================================================
+# STEP 2: CREATE FINE-TUNING JOB
+# ============================================================================
+
+print("\nCreating fine-tuning job...")
+job = openai.fine_tuning.jobs.create(
+    training_file=train_file.id,
+    validation_file=validation_file.id,
+    model="gpt-4.1-nano-2025-04-14",
+    seed=42,
+    hyperparameters={"n_epochs": 1, "batch_size": 1},
+    suffix="pricer"
+)
+
+print(f"Fine-tuning job created: {job.id}")
+
+
+# ============================================================================
+# MONITOR FINE-TUNING JOB
+# ============================================================================
+
+# List recent jobs
+recent_jobs = openai.fine_tuning.jobs.list(limit=1)
+print(f"\nMost recent job: {recent_jobs.data[0].id}")
+
+# Get job ID
+job_id = openai.fine_tuning.jobs.list(limit=1).data[0].id
+print(f"Job ID: {job_id}")
+
+# Retrieve job details
+job_details = openai.fine_tuning.jobs.retrieve(job_id)
+print(f"Job status: {job_details.status}")
+
+# List training events
+events = openai.fine_tuning.jobs.list_events(fine_tuning_job_id=job_id, limit=10).data
+print(f"\nRecent events ({len(events)} shown):")
+for event in events[:5]:
+    print(f"  - {event.message}")
+
+
+# ============================================================================
+# STEP 3: INFERENCE WITH FINE-TUNED MODEL
+# ============================================================================
+
+# Wait for job to complete before running this section
+# You can check status at: https://platform.openai.com/finetune
+
+def wait_for_completion(job_id, check_interval=30):
+    """Poll job status until completion"""
+    import time
+    while True:
+        job = openai.fine_tuning.jobs.retrieve(job_id)
+        print(f"Status: {job.status}")
+        if job.status in ["succeeded", "failed", "cancelled"]:
+            return job
+        time.sleep(check_interval)
+
+
+# Uncomment to wait for completion
+# final_job = wait_for_completion(job_id)
+
+# Retrieve fine-tuned model name
+fine_tuned_model_name = openai.fine_tuning.jobs.retrieve(job_id).fine_tuned_model
+print(f"\nFine-tuned model: {fine_tuned_model_name}")
+
+
+def test_messages_for(item):
+    """Create test message (without assistant response)"""
+    message = f"Estimate the price of this product. Respond with the price, no explanation\n\n{item.summary}"
+    return [
+        {"role": "user", "content": message},
+    ]
+
+
+def gpt_4__1_nano_fine_tuned(item):
+    """Inference function using fine-tuned model"""
+    response = openai.chat.completions.create(
+        model=fine_tuned_model_name,
+        messages=test_messages_for(item),
+        max_tokens=7
+    )
+    return response.choices[0].message.content
+
+
+# Test single prediction
+print("\nTesting single prediction:")
+print(f"Actual price: ${test[0].price}")
+print(f"Predicted price: {gpt_4__1_nano_fine_tuned(test[0])}")
+
+
+# ============================================================================
+# EVALUATION
+# ============================================================================
+
+print("\nEvaluating on test set...")
+mae = evaluate(gpt_4__1_nano_fine_tuned, test)
+print(f"Mean Absolute Error: ${mae:.2f}")
+
+
+# Performance comparison (from notebook comments):
+# 96.58 - mini 200
+# 79.29 - mini 2000
+# 82.26 - nano 2000
+# 67.75 - nano 20,000
+
+```
