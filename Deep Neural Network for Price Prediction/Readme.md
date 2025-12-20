@@ -605,7 +605,7 @@ it'a about loading and evaluating a pre-trained deep neural network for price pr
 
 ### Transfer Learning vs Weight Loading
 **Transfer Learning**: Using a pre-trained model as starting point for a new task
-**Weight Loading** (this notebook): Using a fully trained model for the exact task it was trained on
+**Weight Loading** : Using a fully trained model for the exact task it was trained on
 
 ### Inference
 **Definition**: Using a trained model to make predictions on new data without updating weights. Also called "evaluation mode" or "prediction mode."
@@ -614,7 +614,7 @@ it'a about loading and evaluating a pre-trained deep neural network for price pr
 
 ## Code Walkthrough
 
-###1: Imports
+### 1: Imports
 
 ```python
 from dotenv import load_dotenv
@@ -644,7 +644,7 @@ from pricer.items import Item
 
 ---
 
-###2: Environment Setup
+### 2: Environment Setup
 
 ```python
 LITE_MODE = False
@@ -679,7 +679,7 @@ login(hf_token, add_to_git_credential=True)
 
 ---
 
-###3: Dataset Loading
+### 3: Dataset Loading
 
 ```python
 username = "ed-donner"
@@ -717,13 +717,13 @@ print(f"Loaded {len(train):,} training items, {len(val):,} validation items, {le
    - **Expected Output**: `"Loaded 50,000 training items, 10,000 validation items, 10,000 test items"`
 
 **Dataset Splits**:
-- **Training**: Used to train the model (not used in this notebook)
+- **Training**: Used to train the model 
 - **Validation**: Used during training for hyperparameter tuning (subset used here)
 - **Test**: Held-out set for final evaluation (used here)
 
 ---
 
-###4: Model Initialization
+### 4: Model Initialization
 
 ```python
 runner = DeepNeuralNetworkRunner(train, val[:1000])
@@ -824,7 +824,7 @@ Using cuda  # or mps/cpu depending on hardware
 
 ---
 
-###5: Training Instructions (Markdown)
+### 5: Training Instructions (Markdown)
 
 Thisprovides two options:
 
@@ -876,7 +876,7 @@ for epoch in range(1, epochs + 1):
 
 ---
 
-###6: Load Pre-trained Weights
+### 6: Load Pre-trained Weights
 
 ```python
 runner.load('deep_neural_network.pth')
@@ -925,7 +925,7 @@ def load(self, path):
 
 ---
 
-###7: Inference and Evaluation
+### 7: Inference and Evaluation
 
 ```python
 def deep_neural_network(item):
@@ -1181,7 +1181,7 @@ Dollar Price Prediction
 
 ## Conclusion
 
-This notebook demonstrates the power of deep learning for specialized regression tasks. The 134M parameter residual network achieves state-of-the-art performance by:
+This demonstrates the power of deep learning for specialized regression tasks. The 134M parameter residual network achieves state-of-the-art performance by:
 
 1. Learning complex text-to-price mappings through deep composition
 2. Leveraging residual connections for stable training
