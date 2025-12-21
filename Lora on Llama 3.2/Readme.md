@@ -634,7 +634,7 @@ FINETUNED_MODEL = f"ed-donner/price-2025-11-30_15.10.55-lite"
 ```
 
 **Key Points**:
-- Llama 3.2 requires approval (done in Week 3)
+- Llama 3.2 requires approval 
 - Llama is industry standard (Meta was first with open source)
 - ~20,000 samples is good starting point for training data
 
