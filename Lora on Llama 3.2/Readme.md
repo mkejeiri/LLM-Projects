@@ -2,7 +2,7 @@
 
 ## Course Module for LLM Engineering Path - Week 7
 
-![LoRA Architecture](laura.png)
+![LoRA Architecture](./laura.png)
 
 ---
 
