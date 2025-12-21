@@ -2,7 +2,7 @@
 
 ## Course Module for LLM Engineering Path - Week 7
 
-![LoRA Architecture](./Lora-arch.jpg)
+![LoRA Target Modules](./LoRA.jpg)
 
 ---
 
@@ -71,7 +71,6 @@ LoRA uses matrices with **fewer dimensions** than the original model layers, dra
 
 #### Target Modules
 
-![LoRA Target Modules](./LoRA.jpg)
 
 Not all layers are equally important. LoRA focuses on:
 - Query/Key/Value projection matrices in attention layers
