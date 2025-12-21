@@ -1,7 +1,5 @@
 # QLoRA: Efficient Fine-Tuning for Large Language Models
 
-## Course Module for LLM Engineering Path - Week 7
-
 ![LoRA Target Modules](./LoRA.jpg)
 
 ---
