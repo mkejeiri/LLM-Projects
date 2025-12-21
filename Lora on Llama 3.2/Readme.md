@@ -2,7 +2,7 @@
 
 ## Course Module for LLM Engineering Path - Week 7
 
-![LoRA Architecture](./laura.png)
+![LoRA Architecture](./Lora-arch.jpg)
 
 ---
 
@@ -71,6 +71,8 @@ LoRA uses matrices with **fewer dimensions** than the original model layers, dra
 
 #### Target Modules
 
+![LoRA Target Modules](./LoRA.jpg)
+
 Not all layers are equally important. LoRA focuses on:
 - Query/Key/Value projection matrices in attention layers
 - Output projection layers
@@ -114,6 +116,8 @@ Where:
 ---
 
 ### LoRA Hyperparameters
+
+![LoRA Hyperparameters](./Lora-fine-tune.jpg)
 
 #### 1. Rank (r)
 - **Lower rank** (4-8): Fewer parameters, faster training, less expressive
@@ -365,3 +369,141 @@ You've mastered QLoRA when you can:
 - ✅ Debug memory and training issues
 
 ---
+
+
+
+
+# Llama 3.2 3B Architecture - LoRA Target Modules
+
+## Model Overview
+
+**Llama 3.2 3B**: 3 billion parameters, 28 decoder layers
+- **Memory**: 13GB (FP32)
+- **Model dimension**: 3,072
+
+---
+
+## Decoder Layer Structure (28 layers)
+
+Each layer contains:
+
+### 1. Self-Attention (Target Modules for LoRA)
+
+```python
+(self_attn): LlamaAttention(
+  (q_proj): Linear(3072 → 3072)  # Query projection - PRIMARY LoRA TARGET
+  (k_proj): Linear(3072 → 1024)  # Key projection - LoRA TARGET
+  (v_proj): Linear(3072 → 1024)  # Value projection - PRIMARY LoRA TARGET
+  (o_proj): Linear(3072 → 3072)  # Output projection - LoRA TARGET
+)
+```
+
+**These attention layers are the primary target modules for LoRA.**
+
+
+
+Typical LoRA targeting:
+- **Start with**: `q_proj`, `v_proj` (most common)
+- **Add if needed**: `k_proj`, `o_proj` (full attention)
+
+---
+
+### 2. MLP Layers (Optional LoRA Targets)
+
+```python
+(mlp): LlamaMLP(
+  (gate_proj): Linear(3072 → 8192)  # Optional LoRA target
+  (up_proj): Linear(3072 → 8192)    # Optional LoRA target
+  (down_proj): Linear(8192 → 3072)  # Optional LoRA target
+  (act_fn): SiLUActivation()
+)
+```
+
+**Add MLP layers to LoRA targets for:**
+- More flexibility in fine-tuning
+- Better absorption of training data
+- Slightly better results (but slower training)
+
+---
+
+## LoRA Hyperparameters
+
+### 1. Rank (r)
+
+**Common values**: 8, 16, 32 (powers of 2)
+- **r = 8**: Fewer parameters, faster training
+- **r = 16**: Balanced (recommended starting point)
+- **r = 32**: More parameters, more expressive
+
+**Note**: Powers of 2 are traditional but not required. You could use r = 11, though it feels unconventional.
+
+### 2. Alpha (α)
+
+**Rule of thumb**: α = 2 × r
+- If r = 32, then α = 64
+- This is the standard practice
+- Other values work but typically perform slightly worse
+
+### 3. Target Modules
+
+**Typical progression**:
+1. **Start with**: Attention heads only (`q_proj`, `v_proj`)
+2. **Add if needed**: Full attention (`k_proj`, `o_proj`)
+3. **Add if needed**: MLP layers (`gate_proj`, `up_proj`, `down_proj`)
+
+**Trade-off**: More target modules = more parameters = longer training but potentially better results
+
+---
+
+## QLoRA: Quantization
+
+### What Gets Quantized
+
+**The base model is quantized** (not the LoRA adapters)
+- 32-bit (FP32) → 4-bit quantization
+- 13GB → ~3.25GB memory
+
+### How Quantization Works
+
+Each parameter is like a dimmer switch:
+- **32-bit**: Extremely fine-grained control
+- **4-bit**: Only 16 possible positions (coarse-grained)
+
+**Key insight**: 4-bit quantization reduces performance only slightly, not proportionally to the precision loss.
+
+### Quantization Details
+
+1. **Not integers**: 16 positions map to floating-point values using normal distribution
+2. **Base model only**: LoRA matrices remain higher precision
+3. **Memory savings**: 75% reduction (32-bit → 4-bit)
+4. **Performance impact**: Minimal (like MP3 vs WAV)
+
+---
+
+## LoRA Formula
+
+**For each target module**:
+
+```
+Output = Frozen_Weight × Input + α × (LoRA_A × LoRA_B) × Input
+```
+
+Where:
+- **Frozen_Weight**: Original 3B parameters (frozen, quantized to 4-bit)
+- **LoRA_A**: Small matrix (d × r)
+- **LoRA_B**: Small matrix (r × k)
+- **α**: Scaling factor (typically 2 × r)
+
+---
+
+## Summary for LoRA Implementation
+
+**Target modules to adapt**:
+- Primary: `q_proj`, `v_proj` (attention)
+- Secondary: `k_proj`, `o_proj` (full attention)
+- Optional: `gate_proj`, `up_proj`, `down_proj` (MLP)
+
+**Hyperparameters**:
+- **r**: Start with 16
+- **α**: Use 2 × r
+- **Target modules**: Start with attention, add MLP if needed
