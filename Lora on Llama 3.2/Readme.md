@@ -421,6 +421,37 @@ Typical LoRA targeting:
 - Better absorption of training data
 - Slightly better results (but slower training)
 
+
+#### SiLU Activation Function
+
+**SiLU** (Sigmoid Linear Unit), also called **Swish**
+
+**Formula**: `SiLU(x) = x × sigmoid(x) = x × (1 / (1 + e^(-x)))`
+
+**Formula breakdown**:
+- `sigmoid(x) = 1 / (1 + e^(-x))` - Sigmoid function outputs values between 0 and 1
+- `SiLU(x) = x × sigmoid(x)` - Multiply input by its sigmoid
+- When x is large positive: sigmoid(x) ≈ 1, so SiLU(x) ≈ x (nearly linear)
+- When x is large negative: sigmoid(x) ≈ 0, so SiLU(x) ≈ 0 (smoothly suppressed)
+- When x = 0: sigmoid(0) = 0.5, so SiLU(0) = 0
+
+**Example values**:
+- SiLU(-2) = -2 × 0.12 = -0.24
+- SiLU(-1) = -1 × 0.27 = -0.27
+- SiLU(0) = 0 × 0.5 = 0
+- SiLU(1) = 1 × 0.73 = 0.73
+- SiLU(2) = 2 × 0.88 = 1.76
+
+**Behavior**:
+- Negative values: Smoothly approaches 0 (not hard cutoff like ReLU)
+- Positive values: Nearly linear, slightly curved upward
+- At x=0: Output is 0
+
+**Why use SiLU?**
+- Smooth, non-monotonic function
+- Better gradient flow than ReLU
+- Performs well in deep networks like Llama
+
 ---
 
 ## LoRA Hyperparameters
