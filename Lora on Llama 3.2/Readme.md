@@ -161,7 +161,7 @@ Where:
 
 ```python
 # Required libraries
-pip install transformers peft bitsandbytes accelerate datasets
+!pip install -q --upgrade bitsandbytes #pip install transformers peft bitsandbytes accelerate datasets
 ```
 
 ### Basic QLoRA Configuration
