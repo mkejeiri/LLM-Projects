@@ -687,6 +687,142 @@ result = instance.method.remote(data)
 
 ---
 
+## **COMPLETE PYTHON CODE Step by step**
+
+### **Step 1: Import Required Libraries**
+```python
+# Import necessary libraries for modal, preprocessing, and environment setup
+import os
+import locale
+import modal
+from agents.preprocessor import Preprocessor
+from dotenv import load_dotenv
+load_dotenv(override=True)
+```
+
+### **Step 2: Check Locale Encoding**
+```python
+# To check that your computer can output special characters, make sure this outputs UTF-8
+print(locale.getpreferredencoding())  # Should print 'UTF-8'
+```
+
+### **Step 3: Set Python IO Encoding**
+```python
+# Set Python IO encoding to UTF-8
+os.environ["PYTHONIOENCODING"] = "utf-8"
+```
+
+### **Step 4: Import Hello Module Functions**
+```python
+# Import hello module functions for testing modal
+from hello import app, hello, hello_europe
+```
+
+### **Step 5: Test Hello Function Locally**
+```python
+# Test hello function locally
+with app.run():
+    reply=hello.local()
+reply
+```
+
+### **Step 6: Test Hello Function Remotely**
+```python
+# Test hello function remotely on modal
+with app.run():
+    reply=hello.remote()
+reply
+```
+
+### **Step 7: Test Hello Europe Function**
+```python
+# Test hello_europe function with EU region
+with app.run():
+    reply=hello_europe.remote()
+reply
+```
+
+### **Step 8: Import Llama Module**
+```python
+# Import llama module for text generation
+from llama import app, generate
+```
+
+### **Step 9: Test Llama Text Generation**
+```python
+# Test llama text generation with modal
+with modal.enable_output():
+    with app.run():
+        result=generate.remote("Never gonna give you up, never gonna")
+result
+```
+
+### **Step 10: Import Pricer Ephemeral Module**
+```python
+# Import pricer ephemeral module
+from pricer_ephemeral import app, price
+```
+
+### **Step 11: Test Pricer Function**
+```python
+# Test pricer function with product description
+with modal.enable_output():
+    with app.run():
+        result=price.remote("Quadcast HyperX condenser mic, connects via usb-c to your computer for crystal clear audio")
+result
+```
+
+### **Step 12: Test Preprocessor**
+```python
+# Test preprocessor with product description
+preprocessor = Preprocessor()
+text = preprocessor.preprocess("Quadcast HyperX condenser mic, connects via usb-c to your computer for crystal clear audio")
+print(text)
+```
+
+### **Step 13: Test Preprocessor with Custom Model**
+```python
+# Test preprocessor with custom model
+preprocessor = Preprocessor(model_name="groq/openai/gpt-oss-20b")
+text = preprocessor.preprocess("Quadcast HyperX condenser mic, connects via usb-c to your computer for crystal clear audio")
+print(text)
+```
+
+### **Step 14: Test Pricer with Preprocessed Text**
+```python
+# Test pricer with preprocessed text
+with modal.enable_output():
+    with app.run():
+        result = price.remote(text)
+print(result)
+```
+
+### **Step 15: Deploy Pricer Service**
+```python
+# Deploy pricer service to modal
+!uv run modal deploy -m pricer_service
+```
+
+### **Step 16: Get Deployed Pricer Function**
+```python
+# Get deployed pricer function from modal
+pricer = modal.Function.from_name("pricer-service", "price")
+```
+
+### **Step 17: Test Deployed Pricer**
+```python
+# Test deployed pricer function
+pricer.remote(text)
+```
+
+### **Step 18: Deploy Pricer Service**
+```python
+# Deploy pricer service to modal
+!uv run modal deploy -m pricer_service
+```
+
+
+
 ## Key Takeaways
 
 

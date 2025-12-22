@@ -1,4 +1,4 @@
-## **Building Advanced RAG with ChromaDB and Vector Stores (No LangChain), ensemble models (RAG with chatgpt 5+ llama Fine-Tuned + In house neuronal network)**
+## **Building Advanced RAG with ChromaDB Vector Stores (No LangChain), EnsembleAgent (RAG with chatgpt 5+ llama Fine-Tuned + In house neuronal network)**
 
 ### **Overall System Design**
 The project builds an autonomous deal-finding system with a hierarchical agent architecture:
@@ -713,8 +713,8 @@ def get_price(reply):
 
 ### **Step 21: Deep Neural Network Setup (Optional)**
 ```python
-# Download the Neural Network weights from Week 6 into this directory
-# The file `deep_neural_network.pth` here:
+# Download the Neural Network weights into this directory, older
+# The file `deep_neural_network.pth` here: only work on mac MPS, otherwise create your own go to neuronal network folder Neural_Network_InHouse
 # https://drive.google.com/drive/folders/1uq5C9edPIZ1973dArZiEO-VE13F7m8MK?usp=drive_link
 
 from agents.deep_neural_network import DeepNeuralNetworkInference
