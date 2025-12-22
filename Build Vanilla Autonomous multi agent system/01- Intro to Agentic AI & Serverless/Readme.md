@@ -8,28 +8,28 @@ This is the culmination of the LLM Engineering, bringing together all previous c
 ### 1. Agentic AI Definitions
 **Three Modern Definitions of Agents:**
 
-1.  **OpenAI Definition (Anthropomorphic)**: AI systems that can do work for you independently - like delegating to a human worker
-- Example: "Find me a Chinese restaurant reservation for Thursday"
+	1.  **OpenAI Definition (Anthropomorphic)**: AI systems that can do work for you independently - like delegating to a human worker
+		- Example: "Find me a Chinese restaurant reservation for Thursday"
   
-2.  **Emerging 2025 Definition (Control-Based)**: An AI system where the LLM controls the workflow
+	2.  **Emerging 2025 Definition (Control-Based)**: An AI system where the LLM controls the workflow
 
-- The LLM decides which steps to execute and in what order
-- Contrasts with "agentic workflows" where Python orchestrates fixed sequences
+		- The LLM decides which steps to execute and in what order
+		- Contrasts with "agentic workflows" where Python orchestrates fixed sequences
 
   
 
-3.  **Tool-Loop Definition (Most Common)**: An agent runs tools in a loop to achieve a goal
+	3.  **Tool-Loop Definition (Most Common)**: An agent runs tools in a loop to achieve a goal
 
-- LLM equipped with tools
-- Loops until objective is achieved
-- Example: Claude Code with its to-do list
+		- LLM equipped with tools
+		- Loops until objective is achieved
+		- Example: Claude Code with its to-do list
 
   
 
 **Important Distinction:**
 
--  **Agentic Workflow**: Multiple LLM calls orchestrated by Python (A → B → C)
--  **True Agent**: LLM decides the execution order dynamically
+	-  **Agentic Workflow**: Multiple LLM calls orchestrated by Python (A → B → C)
+	-  **True Agent**: LLM decides the execution order dynamically
 
  
 
@@ -167,7 +167,7 @@ secrets =  [modal.Secret.from_name("huggingface-secret")]
 
 ```python
 
-# pricer_service2.py - Production-ready deployment
+# pricer_service.py - Production-ready deployment
 import modal
 from modal import Volume, Image
 
@@ -638,12 +638,15 @@ Autonomous system that finds online deals, estimates true value, and notifies us
 
 ## Next Steps 
 
-  
 
 **Step 2:** RAG implementation for frontier agent
+
 **Step 3:** Scanner and messenger agents
+
 **Step 4:** Autonomous planner agent
+
 **Step 5:** Complete system integration  
+
 ---
 
 
@@ -684,7 +687,7 @@ result = instance.method.remote(data)
 
 ---
 
-## Key Takeaways for LLM Engineers
+## Key Takeaways
 
 
 1.  **Serverless AI is Production-Ready**: Modal makes deployment as easy as writing Python
