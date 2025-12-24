@@ -233,7 +233,7 @@ def push(message):
     requests.post(pushover_url, data=payload)
 
 # Test it
-push("MASSIVE DEAL!!")
+push("CHRISTMAS DEAL!!")
 ```
 
 ### Messaging Agent with LLM Hype
