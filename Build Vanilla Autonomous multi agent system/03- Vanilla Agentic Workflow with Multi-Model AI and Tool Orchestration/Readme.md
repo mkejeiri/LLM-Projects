@@ -818,7 +818,7 @@ project/
 │   ├── preprocessor.py           # Text preprocessing
 │   └── deals.py                  # Pydantic models
 ├── deal_agent_framework.py       # Main framework
-├── price_is_right.py            # Gradio UI
+├── assess_notify_best_deal.py.py            # Gradio UI
 ├── memory.json                   # Persistent state
 ├── products_vectorstore/         # ChromaDB
 └── .env                          # API keys
@@ -833,10 +833,10 @@ project/
 python -c "from deal_agent_framework import DealAgentFramework; DealAgentFramework.reset_memory()"
 
 # Run the UI
-uv run price_is_right.py
+uv run assess_notify_best_deal.py.py
 
 # Or in notebook
-!uv run price_is_right.py
+!uv run assess_notify_best_deal.py.py
 ```
 
 The system will:
