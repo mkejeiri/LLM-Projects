@@ -233,7 +233,7 @@ def push(message):
     requests.post(pushover_url, data=payload)
 
 # Test it
-push("CHRISTMAS DEAL!!")
+push("MASSIVE DEAL!!")
 ```
 
 ### Messaging Agent with LLM Hype
@@ -335,7 +335,6 @@ def notify_user_of_deal(description: str, deal_price: float,
     return "notification sent ok"
 ```
 
-
 ### Tool JSON Definitions
 
 ```python
@@ -387,39 +386,6 @@ tools = [
     {"type": "function", "function": estimate_function},
     {"type": "function", "function": notify_function}
 ]
-```
-
-```
-#Tools output
-[{'type': 'function',
-  'function': {'name': 'scan_the_internet_for_bargains',
-   'description': 'Returns top bargains scraped from the internet along with the price each item is being offered for',
-   'parameters': {'type': 'object',
-    'properties': {},
-    'required': [],
-    'additionalProperties': False}}},
- {'type': 'function',
-  'function': {'name': 'estimate_true_value',
-   'description': 'Given the description of an item, estimate how much it is actually worth',
-   'parameters': {'type': 'object',
-    'properties': {'description': {'type': 'string',
-      'description': 'The description of the item to be estimated'}},
-    'required': ['description'],
-    'additionalProperties': False}}},
- {'type': 'function',
-  'function': {'name': 'notify_user_of_deal',
-   'description': 'Send the user a push notification about the single most compelling deal; only call this one time',
-   'parameters': {'type': 'object',
-    'properties': {'description': {'type': 'string',
-      'description': 'The description of the item itself scraped from the internet'},
-     'deal_price': {'type': 'number',
-      'description': 'The price offered by this deal scraped from the internet'},
-     'estimated_true_value': {'type': 'number',
-      'description': 'The estimated actual value that this is worth'},
-     'url': {'type': 'string',
-      'description': 'The URL of this deal as scraped from the internet'}},
-    'required': ['description', 'deal_price', 'estimated_true_value', 'url'],
-    'additionalProperties': False}}}]
 ```
 
 ### Tool Call Handler
@@ -687,7 +653,7 @@ class App:
         return self.agent_framework
     
     def run(self):
-        with gr.Blocks(title="The Price is Right", fill_width=True) as ui:
+        with gr.Blocks(title="Verified Best Deal", fill_width=True) as ui:
             log_data = gr.State([])
             
             def table_for(opps):
@@ -714,7 +680,7 @@ class App:
             
             with gr.Row():
                 gr.Markdown('<div style="text-align: center;font-size:24px">'
-                           '<strong>The Price is Right</strong> - '
+                           '<strong>Verified Best Deal</strong> - '
                            'Autonomous Agent Framework that hunts for deals</div>')
             
             with gr.Row():
