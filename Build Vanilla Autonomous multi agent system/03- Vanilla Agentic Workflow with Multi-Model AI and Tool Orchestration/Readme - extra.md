@@ -1820,11 +1820,11 @@ import gradio as gr
 
   
 
-with gr.Blocks(title="The Price is Right",  fill_width=True)  as ui:
+with gr.Blocks(title="Verified Best Deal",  fill_width=True)  as ui:
 
 with gr.Row():
 
-gr.Markdown('<div style="text-align: center;font-size:24px">The Price is Right - Deal Hunting Agentic AI</div>')
+gr.Markdown('<div style="text-align: center;font-size:24px">Verified Best Deal - Deal Hunting Agentic AI</div>')
 
 with gr.Row():
 
@@ -1848,7 +1848,7 @@ from agents.deals import Opportunity, Deal
 
   
 
-with gr.Blocks(title="The Price is Right",  fill_width=True)  as ui:
+with gr.Blocks(title="Verified Best Deal",  fill_width=True)  as ui:
 
 # Create initial test data
 
@@ -1898,7 +1898,7 @@ for opp in opps
 
 with gr.Row():
 
-gr.Markdown('<div style="text-align: center;font-size:24px">"The Price is Right" - Deal Hunting Agentic AI</div>')
+gr.Markdown('<div style="text-align: center;font-size:24px">"Verified Best Deal" - Deal Hunting Agentic AI</div>')
 
 with gr.Row():
 
@@ -1950,7 +1950,7 @@ agent_framework.init_agents_as_needed()
 
   
 
-with gr.Blocks(title="The Price is Right",  fill_width=True)  as ui:
+with gr.Blocks(title="Verified Best Deal",  fill_width=True)  as ui:
 
 initial_deal = Deal(product_description="Example description",  price=100.0,  url="https://cnn.com")
 
@@ -1974,7 +1974,7 @@ agent_framework.planner.messenger.alert(opportunity)
 
 with gr.Row():
 
-gr.Markdown('<div style="text-align: center;font-size:24px">"The Price is Right" - Deal Hunting Agentic AI</div>')
+gr.Markdown('<div style="text-align: center;font-size:24px">"Verified Best Deal" - Deal Hunting Agentic AI</div>')
 
 with gr.Row():
 
@@ -2318,7 +2318,7 @@ return  self.agent_framework
 
 def  run(self):
 
-with gr.Blocks(title="The Price is Right",  fill_width=True)  as ui:
+with gr.Blocks(title="Verified Best Deal",  fill_width=True)  as ui:
 
 log_data = gr.State([])
 
@@ -2490,7 +2490,7 @@ gr.Markdown(
 
 '<div style="text-align: center;font-size:24px">'
 
-'<strong>The Price is Right</strong> - '
+'<strong>Verified Best Deal</strong> - '
 
 'Autonomous Agent Framework that hunts for deals</div>'
 
