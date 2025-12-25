@@ -273,7 +273,7 @@ def save_results(question, competitors, answers, judgment=None):
 
 def compare_all_models(include_judgment=True, save_to_file=True):
     """Compare responses from all available models with optional judging"""
-    print("=== Lab 2: Multi-Model API Integration with Judging ===")
+    print("=== Multi-Model API Integration with Judging ===")
     
     # Setup environment
     api_keys = setup_environment()
