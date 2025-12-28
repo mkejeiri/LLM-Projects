@@ -1334,3 +1334,701 @@ flexible_agent = Agent(
 
 >The progression from simple workflows to true agentic behavior represents a fundamental shift in how we architect AI systems - from predetermined sequences to autonomous decision-making entities that can adapt and respond to complex scenarios.
 
+
+----
+
+# Advanced OpenAI Agents SDK: Multi-Model Integration, Structured Outputs, and Guardrails
+
+## Overview
+
+This comprehensive guide explores advanced concepts in the OpenAI Agents SDK, focusing on three critical areas for LLM Engineers: multi-model integration through OpenAI-compatible endpoints, structured outputs using Pydantic schemas, and guardrails for input/output validation. The implementation demonstrates a sophisticated Sales Development Representative (SDR) automation system that showcases these concepts in a practical business context.
+
+## Core Architecture Concepts
+
+### Agent-to-Tool Transformation Pattern
+
+The OpenAI Agents SDK implements a powerful abstraction where agents can be seamlessly converted into tools using the `as_tool()` method. This pattern enables hierarchical agent architectures:
+
+```python
+tool1 = sales_agent1.as_tool(tool_name="sales_agent1", tool_description=description)
+```
+
+This transformation allows agents to be consumed by other agents as callable functions, creating a composable architecture where complex workflows can be built from simpler agent components.
+
+### Tools vs Handoffs: Control Flow Patterns
+
+The framework distinguishes between two collaboration patterns:
+
+- **Tools**: Function calls that return control to the calling agent
+- **Handoffs**: Transfer of control to another agent in the workflow
+
+```python
+# Tools - agents as callable functions
+tools = [tool1, tool2, tool3]
+
+# Handoffs - control transfer
+handoffs = [emailer_agent]
+```
+
+This distinction is crucial for designing agent workflows where some operations require return values (tools) while others represent workflow transitions (handoffs).
+
+## Multi-Model Integration Architecture
+
+### OpenAI-Compatible Endpoint Pattern
+
+The SDK leverages OpenAI-compatible endpoints to integrate multiple LLM providers seamlessly:
+
+```python
+GEMINI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/openai/"
+DEEPSEEK_BASE_URL = "https://api.deepseek.com/v1"
+GROQ_BASE_URL = "https://api.groq.com/openai/v1"
+```
+
+### Client Instantiation Pattern
+
+Each model provider requires a dedicated AsyncOpenAI client configured with the appropriate base URL and API key:
+
+```python
+deepseek_client = AsyncOpenAI(base_url=DEEPSEEK_BASE_URL, api_key=deepseek_api_key)
+gemini_client = AsyncOpenAI(base_url=GEMINI_BASE_URL, api_key=google_api_key)
+groq_client = AsyncOpenAI(base_url=GROQ_BASE_URL, api_key=groq_api_key)
+```
+
+### Model Abstraction Layer
+
+The `OpenAIChatCompletionsModel` class provides a unified interface across different providers:
+
+```python
+deepseek_model = OpenAIChatCompletionsModel(model="deepseek-chat", openai_client=deepseek_client)
+gemini_model = OpenAIChatCompletionsModel(model="gemini-2.0-flash", openai_client=gemini_client)
+llama3_3_model = OpenAIChatCompletionsModel(model="llama-3.3-70b-versatile", openai_client=groq_client)
+```
+
+This abstraction enables model-agnostic agent creation where the same agent logic can be executed across different LLM providers.
+
+### Agent Specialization Through Model Selection
+
+Different models can be assigned specialized roles based on their characteristics:
+
+```python
+sales_agent1 = Agent(name="DeepSeek Sales Agent", instructions=instructions1, model=deepseek_model)
+sales_agent2 = Agent(name="Gemini Sales Agent", instructions=instructions2, model=gemini_model)
+sales_agent3 = Agent(name="Llama3.3 Sales Agent", instructions=instructions3, model=llama3_3_model)
+```
+
+Each agent maintains distinct personalities and capabilities while operating within the same framework.
+
+## Structured Outputs Implementation
+
+### Pydantic Schema Definition
+
+Structured outputs require defining Pydantic BaseModel classes that specify the expected output format:
+
+```python
+class NameCheckOutput(BaseModel):
+    is_name_in_message: bool
+    name: str
+```
+
+This schema enforces type safety and provides clear contracts for agent outputs.
+
+### Agent Configuration for Structured Outputs
+
+Agents are configured to produce structured outputs using the `output_type` parameter:
+
+```python
+guardrail_agent = Agent( 
+    name="Name check",
+    instructions="Check if the user is including someone's personal name in what they want you to do.",
+    output_type=NameCheckOutput,
+    model="gpt-4o-mini"
+)
+```
+
+This configuration ensures the agent's response conforms to the specified schema rather than returning free-form text.
+
+### Benefits of Structured Outputs
+
+1. **Type Safety**: Compile-time validation of expected data structures
+2. **API Consistency**: Predictable response formats for downstream processing
+3. **Error Reduction**: Elimination of parsing errors from unstructured text
+4. **Integration Simplicity**: Direct object access instead of text parsing
+
+## Guardrails Architecture
+
+### Input Guardrail Pattern
+
+Input guardrails validate incoming data before processing begins:
+
+```python
+@input_guardrail
+async def guardrail_against_name(ctx, agent, message):
+    result = await Runner.run(guardrail_agent, message, context=ctx.context)
+    is_name_in_message = result.final_output.is_name_in_message
+    return GuardrailFunctionOutput(
+        output_info={"found_name": result.final_output},
+        tripwire_triggered=is_name_in_message
+    )
+```
+
+### Guardrail Function Output Contract
+
+All guardrails must return a `GuardrailFunctionOutput` object with:
+- `output_info`: Dictionary containing diagnostic information
+- `tripwire_triggered`: Boolean indicating whether the guardrail was violated
+
+### Agent-Based Guardrails
+
+The framework's unique approach allows guardrails themselves to be powered by LLMs:
+
+```python
+guardrail_agent = Agent( 
+    name="Name check",
+    instructions="Check if the user is including someone's personal name in what they want you to do.",
+    output_type=NameCheckOutput,
+    model="gpt-4o-mini"
+)
+```
+
+This enables sophisticated validation logic that can understand context and nuance rather than simple pattern matching.
+
+### Guardrail Integration
+
+Guardrails are integrated into agents during instantiation:
+
+```python
+careful_sales_manager = Agent(
+    name="Sales Manager",
+    instructions=sales_manager_instructions,
+    tools=tools,
+    handoffs=[emailer_agent],
+    model="gpt-4o-mini",
+    input_guardrails=[guardrail_against_name]
+)
+```
+
+### Exception-Based Control Flow
+
+When guardrails are triggered, the system raises exceptions to halt processing:
+
+```
+GuardrailInputTriggered: Guardrail triggered tripwire
+```
+
+This provides a clear mechanism for handling policy violations and prevents unauthorized operations.
+
+## Advanced Workflow Patterns
+
+### Multi-Agent Evaluation Pattern
+
+The sales manager implements a sophisticated evaluation workflow:
+
+```python
+sales_manager_instructions = """
+You are a Sales Manager at ComplAI. Your goal is to find the single best cold sales email using the sales_agent tools.
+ 
+Follow these steps carefully:
+1. Generate Drafts: Use all three sales_agent tools to generate three different email drafts. Do not proceed until all three drafts are ready.
+ 
+2. Evaluate and Select: Review the drafts and choose the single best email using your judgment of which one is most effective.
+You can use the tools multiple times if you're not satisfied with the results from the first try.
+ 
+3. Handoff for Sending: Pass ONLY the winning email draft to the 'Email Manager' agent. The Email Manager will take care of formatting and sending.
+"""
+```
+
+This pattern demonstrates:
+- **Parallel Generation**: Multiple agents working simultaneously
+- **Quality Control**: Iterative refinement capability
+- **Decision Making**: Agent-based selection logic
+- **Workflow Orchestration**: Controlled handoff to specialized agents
+
+### Asynchronous Execution Model
+
+The framework leverages Python's async/await pattern for efficient I/O operations:
+
+```python
+with trace("Automated SDR"):
+    result = await Runner.run(sales_manager, message)
+```
+
+This enables parallel execution of multiple LLM calls, significantly improving performance for multi-agent workflows.
+
+## Email Processing Pipeline
+
+### Specialized Agent Roles
+
+The email processing pipeline demonstrates role-based agent specialization:
+
+```python
+subject_writer = Agent(name="Email subject writer", instructions=subject_instructions, model="gpt-4o-mini")
+html_converter = Agent(name="HTML email body converter", instructions=html_instructions, model="gpt-4o-mini")
+```
+
+### Tool Chain Pattern
+
+The emailer agent orchestrates multiple specialized tools:
+
+```python
+email_tools = [subject_tool, html_tool, send_html_email]
+
+emailer_agent = Agent(
+    name="Email Manager",
+    instructions=instructions,
+    tools=email_tools,
+    model="gpt-4o-mini",
+    handoff_description="Convert an email to HTML and send it"
+)
+```
+
+### Function Tool Decorator
+
+The `@function_tool` decorator seamlessly integrates external services:
+
+```python
+@function_tool
+def send_html_email(subject: str, html_body: str) -> Dict[str, str]:
+    """ Send out an email with the given subject and HTML body to all sales prospects """
+    sg = sendgrid.SendGridAPIClient(api_key=os.environ.get('SENDGRID_API_KEY'))
+    # Implementation details...
+    return {"status": "success"}
+```
+
+## Error Handling and Stability Considerations
+
+### Autonomous Agent Challenges
+
+We highlight inherent instability in autonomous agent systems:
+
+> "There is inherent instability with these autonomous agent frameworks. And that's something that you need to code explicitly for."
+
+### Infinite Loop Prevention
+
+The instruction "You can use the tools multiple times if you're not satisfied with the results" can lead to infinite loops, requiring careful prompt engineering and timeout mechanisms.
+
+### Trace Analysis
+
+The framework provides comprehensive tracing capabilities for debugging:
+
+```python
+with trace("Protected Automated SDR"):
+    result = await Runner.run(careful_sales_manager, message)
+```
+
+Traces reveal execution patterns, including parallel execution and potential performance bottlenecks.
+
+## Production Considerations
+
+### API Key Management
+
+The implementation demonstrates proper environment variable usage for API keys:
+
+```python
+openai_api_key = os.getenv('OPENAI_API_KEY')
+google_api_key = os.getenv('GOOGLE_API_KEY')
+deepseek_api_key = os.getenv('DEEPSEEK_API_KEY')
+```
+
+### Model Provider Limitations
+
+The course notes acknowledge current limitations:
+
+> as of today "Anthropic does not offer an OpenAI compatible endpoint"
+
+Workarounds include third-party providers like OpenRouter or the MCP protocol integration.
+
+### Cost Optimization
+
+Different models offer varying cost-performance tradeoffs:
+- DeepSeek: Cost-effective option
+- Gemini: Google's competitive offering  
+- Llama 3.3: Open-source alternative via Groq
+
+## Security and Compliance
+
+### PII Protection
+
+Guardrails serve as critical security controls for preventing data leakage:
+
+```python
+instructions="Check if the user is including someone's personal name in what they want you to do."
+```
+
+This pattern can be extended to detect:
+- Phone numbers
+- Email addresses
+- Social security numbers
+- Credit card information
+
+### Input Validation
+
+The guardrail system provides a framework for comprehensive input validation that goes beyond simple pattern matching to include contextual understanding.
+
+## Future Extensions
+
+### Structured Email Generation
+
+The course suggests implementing structured outputs for email generation:
+
+```python
+class EmailOutput(BaseModel):
+    subject: str
+    recipient: str
+    body: str
+```
+
+This would provide better type safety and easier integration with email systems.
+
+### Output Guardrails
+
+While the implementation focuses on input guardrails, output guardrails follow the same pattern:
+
+```python
+@output_guardrail
+async def guardrail_against_inappropriate_content(ctx, agent, output):
+    # Validation logic
+    return GuardrailFunctionOutput(...)
+```
+
+### User Interface Integration
+
+We could add a user interfaces around the agent system, transforming it from a development tool into a production business application.
+
+```python
+"""
+SDR Automation - OpenAI Agents SDK Implementation
+"""
+
+from dotenv import load_dotenv
+from agents import Agent, Runner, trace, function_tool
+from typing import Dict, List
+import sendgrid
+import os
+from sendgrid.helpers.mail import Mail, Email, To, Content
+import asyncio
+
+
+class EmailService:
+    """
+    CONCEPT: Function Tool Pattern
+    - Uses @function_tool decorator to convert regular functions into agent tools
+    - Eliminates JSON boilerplate
+    - Automatically creates tool schema from function signature
+    """
+    
+    def __init__(self):
+        load_dotenv(override=True)
+        self.sg = sendgrid.SendGridAPIClient(api_key=os.environ.get('SENDGRID_API_KEY'))
+    
+    @function_tool
+    def send_email(self, body: str) -> Dict[str, str]:
+        """Send out an email with the given body to all sales prospects"""
+        from_email = Email("kejxxx@gmail.com")  # Change to your verified sender
+        to_email = To("mkejxxx@gmail.com")  # Change to your recipient
+        content = Content("text/plain", body)
+        mail = Mail(from_email, to_email, "Sales email", content).get()
+        self.sg.client.mail.send.post(request_body=mail)
+        return {"status": "success"}
+    
+    @function_tool
+    def send_html_email(self, subject: str, html_body: str) -> Dict[str, str]:
+        """Send out an email with the given subject and HTML body to all sales prospects"""
+        from_email = Email("kejxxx@gmail.com")  # Change to your verified sender
+        to_email = To("kejxxx@gmail.com")  # Change to your recipient
+        content = Content("text/html", html_body)
+        mail = Mail(from_email, to_email, subject, content).get()
+        self.sg.client.mail.send.post(request_body=mail)
+        return {"status": "success"}
+
+
+class SalesAgentFactory:
+    """
+    CONCEPT: Agent Specialization Pattern
+    - Creates specialized agents with different personalities and writing styles
+    - Each agent has distinct instructions but uses the same underlying model
+    - Demonstrates how instructions shape agent behavior
+    """
+    
+    @staticmethod
+    def create_professional_agent() -> Agent:
+        """Creates a professional, serious sales agent"""
+        instructions = """You are a sales agent working for ComplAI, 
+        a company that provides a SaaS tool for ensuring SOC2 compliance and preparing for audits, powered by AI. 
+        You write professional, serious cold emails."""
+        
+        return Agent(
+            name="Professional Sales Agent",
+            instructions=instructions,
+            model="gpt-4o-mini"
+        )
+    
+    @staticmethod
+    def create_engaging_agent() -> Agent:
+        """Creates a humorous, engaging sales agent"""
+        instructions = """You are a humorous, engaging sales agent working for ComplAI, 
+        a company that provides a SaaS tool for ensuring SOC2 compliance and preparing for audits, powered by AI. 
+        You write witty, engaging cold emails that are likely to get a response."""
+        
+        return Agent(
+            name="Engaging Sales Agent",
+            instructions=instructions,
+            model="gpt-4o-mini"
+        )
+    
+    @staticmethod
+    def create_concise_agent() -> Agent:
+        """Creates a busy, concise sales agent"""
+        instructions = """You are a busy sales agent working for ComplAI, 
+        a company that provides a SaaS tool for ensuring SOC2 compliance and preparing for audits, powered by AI. 
+        You write concise, to the point cold emails."""
+        
+        return Agent(
+            name="Busy Sales Agent",
+            instructions=instructions,
+            model="gpt-4o-mini"
+        )
+
+
+class EmailProcessingAgents:
+    """
+    CONCEPT: Specialized Agent Roles
+    - Creates agents with specific, focused responsibilities
+    - Demonstrates role-based agent specialization
+    - Each agent handles one aspect of email processing
+    """
+    
+    @staticmethod
+    def create_subject_writer() -> Agent:
+        """Creates an agent specialized in writing email subjects"""
+        instructions = """You can write a subject for a cold sales email. 
+        You are given a message and you need to write a subject for an email that is likely to get a response."""
+        
+        return Agent(
+            name="Email subject writer",
+            instructions=instructions,
+            model="gpt-4o-mini"
+        )
+    
+    @staticmethod
+    def create_html_converter() -> Agent:
+        """Creates an agent specialized in converting text to HTML"""
+        instructions = """You can convert a text email body to an HTML email body. 
+        You are given a text email body which might have some markdown 
+        and you need to convert it to an HTML email body with simple, clear, compelling layout and design."""
+        
+        return Agent(
+            name="HTML email body converter",
+            instructions=instructions,
+            model="gpt-4o-mini"
+        )
+
+
+class SDRAutomationSystem:
+    """
+    CONCEPT: Multi-Agent Orchestration System
+    - Demonstrates Tools vs Handoffs pattern
+    - Tools: Function calls that return control to calling agent
+    - Handoffs: Transfer of control to another agent in workflow
+    - Implements parallel agent execution with asyncio.gather()
+    """
+    
+    def __init__(self):
+        self.email_service = EmailService()
+        self.sales_agents = self._create_sales_agents()
+        self.email_manager = self._create_email_manager()
+        self.sales_manager = self._create_sales_manager()
+    
+    def _create_sales_agents(self) -> List[Agent]:
+        """
+        CONCEPT: Agent-to-Tool Transformation
+        - Agents can be converted to tools using as_tool() method
+        - Enables hierarchical agent architectures
+        - Tools allow agents to be consumed by other agents as callable functions
+        """
+        factory = SalesAgentFactory()
+        return [
+            factory.create_professional_agent(),
+            factory.create_engaging_agent(),
+            factory.create_concise_agent()
+        ]
+    
+    def _create_email_manager(self) -> Agent:
+        """
+        CONCEPT: Tool Chain Pattern
+        - Agent orchestrates multiple specialized tools
+        - Sequential tool execution for complex workflows
+        - Handoff description enables workflow transitions
+        """
+        processing_agents = EmailProcessingAgents()
+        subject_writer = processing_agents.create_subject_writer()
+        html_converter = processing_agents.create_html_converter()
+        
+        # Convert agents to tools
+        subject_tool = subject_writer.as_tool(
+            tool_name="subject_writer",
+            tool_description="Write a subject for a cold sales email"
+        )
+        html_tool = html_converter.as_tool(
+            tool_name="html_converter",
+            tool_description="Convert a text email body to an HTML email body"
+        )
+        
+        tools = [subject_tool, html_tool, self.email_service.send_html_email]
+        
+        instructions = """You are an email formatter and sender. You receive the body of an email to be sent. 
+        You first use the subject_writer tool to write a subject for the email, then use the html_converter tool to convert the body to HTML. 
+        Finally, you use the send_html_email tool to send the email with the subject and HTML body."""
+        
+        return Agent(
+            name="Email Manager",
+            instructions=instructions,
+            tools=tools,
+            model="gpt-4o-mini",
+            handoff_description="Convert an email to HTML and send it"
+        )
+    
+    def _create_sales_manager(self) -> Agent:
+        """
+        CONCEPT: Multi-Agent Evaluation Pattern
+        - Orchestrates multiple agents for parallel generation
+        - Implements quality control through iterative refinement
+        - Uses both tools (for generation) and handoffs (for workflow transfer)
+        """
+        # Convert sales agents to tools
+        tools = []
+        for i, agent in enumerate(self.sales_agents, 1):
+            tool = agent.as_tool(
+                tool_name=f"sales_agent{i}",
+                tool_description="Write a cold sales email"
+            )
+            tools.append(tool)
+        
+        instructions = """
+        You are a Sales Manager at ComplAI. Your goal is to find the single best cold sales email using the sales_agent tools.
+         
+        Follow these steps carefully:
+        1. Generate Drafts: Use all three sales_agent tools to generate three different email drafts. Do not proceed until all three drafts are ready.
+         
+        2. Evaluate and Select: Review the drafts and choose the single best email using your judgment of which one is most effective.
+        You can use the tools multiple times if you're not satisfied with the results from the first try.
+         
+        3. Handoff for Sending: Pass ONLY the winning email draft to the 'Email Manager' agent. The Email Manager will take care of formatting and sending.
+         
+        Crucial Rules:
+        - You must use the sales agent tools to generate the drafts — do not write them yourself.
+        - You must hand off exactly ONE email to the Email Manager — never more than one.
+        """
+        
+        return Agent(
+            name="Sales Manager",
+            instructions=instructions,
+            tools=tools,
+            handoffs=[self.email_manager],
+            model="gpt-4o-mini"
+        )
+    
+    async def run_parallel_generation(self, message: str) -> List[str]:
+        """
+        CONCEPT: Asynchronous Execution Model
+        - Uses asyncio.gather() for parallel agent execution
+        - Leverages async/await for efficient I/O operations
+        - Enables simultaneous LLM calls for improved performance
+        """
+        with trace("Parallel cold emails"):
+            results = await asyncio.gather(
+                Runner.run(self.sales_agents[0], message),
+                Runner.run(self.sales_agents[1], message),
+                Runner.run(self.sales_agents[2], message),
+            )
+        
+        return [result.final_output for result in results]
+    
+    async def run_with_selection(self, message: str) -> str:
+        """
+        CONCEPT: Agent-Based Selection Pattern
+        - Uses dedicated agent for quality evaluation
+        - Implements decision-making logic through agent instructions
+        - Demonstrates agent collaboration for complex workflows
+        """
+        # Create sales picker agent
+        sales_picker = Agent(
+            name="sales_picker",
+            instructions="""You pick the best cold sales email from the given options. 
+            Imagine you are a customer and pick the one you are most likely to respond to. 
+            Do not give an explanation; reply with the selected email only.""",
+            model="gpt-4o-mini"
+        )
+        
+        with trace("Selection from sales people"):
+            # Generate emails in parallel
+            results = await asyncio.gather(
+                Runner.run(self.sales_agents[0], message),
+                Runner.run(self.sales_agents[1], message),
+                Runner.run(self.sales_agents[2], message),
+            )
+            outputs = [result.final_output for result in results]
+            
+            # Format for selection
+            emails = "Cold sales emails:\n\n" + "\n\nEmail:\n\n".join(outputs)
+            
+            # Select best email
+            best = await Runner.run(sales_picker, emails)
+            
+            return best.final_output
+    
+    async def run_automated_sdr(self, message: str):
+        """
+        CONCEPT: End-to-End Workflow Orchestration
+        - Combines tools and handoffs for complete automation
+        - Demonstrates workflow transitions through handoff pattern
+        - Implements tracing for observability and debugging
+        """
+        with trace("Automated SDR"):
+            result = await Runner.run(self.sales_manager, message)
+            return result
+
+
+# Usage Example
+async def main():
+    """
+    CONCEPT: System Integration and Execution
+    - Demonstrates complete SDR automation workflow
+    - Shows how all patterns work together in practice
+    """
+    sdr_system = SDRAutomationSystem()
+    
+    # Example 1: Parallel generation
+    print("=== Parallel Generation ===")
+    outputs = await sdr_system.run_parallel_generation("Write a cold sales email")
+    for i, output in enumerate(outputs, 1):
+        print(f"Agent {i}: {output}\n")
+    
+    # Example 2: With selection
+    print("=== With Selection ===")
+    best_email = await sdr_system.run_with_selection("Write a cold sales email")
+    print(f"Best email: {best_email}\n")
+    
+    # Example 3: Full automation with handoffs
+    print("=== Full Automation ===")
+    await sdr_system.run_automated_sdr("Send out a cold sales email addressed to Dear CEO from Alice")
+
+
+if __name__ == "__main__":
+    asyncio.run(main())
+
+```
+
+## Key takeaways
+
+This implementation demonstrates sophisticated patterns for building production-ready agent systems using the OpenAI Agents SDK. The combination of multi-model integration, structured outputs, and guardrails provides a robust foundation for enterprise applications requiring both flexibility and safety. The modular architecture enables easy extension and customization while maintaining clear separation of concerns across different system components.
+
+The key insights for LLM Engineers are:
+
+1. **Abstraction Layers**: Use model abstraction to enable provider flexibility
+2. **Structured Contracts**: Implement Pydantic schemas for type safety
+3. **Security by Design**: Integrate guardrails as first-class citizens
+4. **Workflow Orchestration**: Leverage tools vs handoffs appropriately
+5. **Async Patterns**: Utilize asynchronous execution for performance
+6. **Observability**: Implement comprehensive tracing for debugging
+
+These patterns form the foundation for building scalable, secure, and maintainable agent-based systems in production environments.
