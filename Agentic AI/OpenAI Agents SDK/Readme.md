@@ -283,14 +283,22 @@ Explain the rationale for each approach and when to use each one."
 ### Vibe Coding Anti-Patterns to Avoid
 
 ❌ **Don't**: Generate large code blocks without understanding
+
 ❌ **Don't**: Accept first solution without verification  
+
 ❌ **Don't**: Skip incremental testing
+
 ❌ **Don't**: Ignore error handling until the end
 
+
 ✅ **Do**: Build incrementally with testing
+
 ✅ **Do**: Understand every line of generated code
+
 ✅ **Do**: Validate solutions across multiple LLMs
+
 ✅ **Do**: Ask for explanations of complex logic
+
 
 ## Monitoring and Tracing
 
@@ -339,7 +347,7 @@ async def complex_agent_workflow():
 
 ### Multi-Agent Patterns
 
-While this lab shows single-agent usage, the framework supports:
+While this code snippets shows single-agent usage, the framework supports:
 - Agent handoffs for complex workflows
 - Concurrent agent execution with `asyncio.gather()`
 - Agent specialization and role-based architectures
@@ -701,52 +709,6 @@ system = EmailSystem()
 result = await system.process_request("Send cold email to CEO")
 ```
 
-### Advanced Handoff Implementation
-
-```python
-class AdvancedEmailSystem:
-    """System demonstrating handoff patterns"""
-    
-    def __init__(self):
-        self.formatter = self._create_formatter()
-        self.generator = self._create_generator()
-    
-    def _create_formatter(self) -> Agent:
-        """Agent specialized in email formatting and sending"""
-        return Agent(
-            name="Email Formatter",
-            instructions="Format emails to HTML and send them",
-            tools=[self.create_subject, self.convert_html, self.send_html],
-            handoff_description="Format and send emails"
-        )
-    
-    def _create_generator(self) -> Agent:
-        """Agent that generates emails and hands off formatting"""
-        return Agent(
-            name="Email Generator", 
-            instructions="Generate best email then handoff to formatter",
-            tools=self._get_generation_tools(),
-            handoffs=[self.formatter]
-        )
-    
-    @function_tool
-    def create_subject(self, email_body: str) -> str:
-        """Generate compelling email subject"""
-        # Implementation
-        pass
-    
-    @function_tool  
-    def convert_html(self, text_body: str) -> str:
-        """Convert text email to HTML"""
-        # Implementation
-        pass
-    
-    @function_tool
-    def send_html(self, subject: str, html_body: str) -> Dict[str, str]:
-        """Send HTML email"""
-        # Implementation
-        pass
-
 ## Design Patterns and Best Practices
 
 ### 1. Agent Specialization Pattern
@@ -804,22 +766,6 @@ with trace("Email Campaign"):
         # Sending logic
 ```
 
-### 5. Error Handling Pattern
-
-**Principle**: Implement graceful degradation in agent systems
-
-```python
-@function_tool
-def robust_email_send(body: str) -> Dict[str, str]:
-    """Send email with fallback mechanisms"""
-    try:
-        return primary_email_service(body)
-    except Exception as e:
-        try:
-            return backup_email_service(body)
-        except Exception:
-            return {"status": "failed", "error": str(e)}
-```
 
 ## Advanced Concepts
 
@@ -850,28 +796,6 @@ flexible_agent = Agent(
     instructions="Choose the most appropriate tool for each task"
 )
 ```
-
-## Commercial Applications
-
-### Immediate Applications
-- **Sales Automation**: Complete SDR workflows
-- **Customer Support**: Multi-tier response systems  
-- **Content Generation**: Blog posts, marketing materials
-- **Data Processing**: Analysis and reporting pipelines
-
-### Advanced Applications
-- **Interactive Conversations**: Email-based customer engagement
-- **Process Automation**: End-to-end business workflows
-- **Quality Assurance**: Multi-agent review systems
-- **Personalization**: Dynamic content adaptation
-
-### Implementation Considerations
-
-1. **Scalability**: Design for concurrent agent execution
-2. **Monitoring**: Implement comprehensive tracing
-3. **Error Recovery**: Build resilient agent interactions
-4. **Cost Management**: Optimize model usage patterns
-5. **Security**: Validate agent inputs and outputs
 
 ## Key Takeaways
 
@@ -1015,8 +939,8 @@ email_tools = [
 ```
 
 ```python
+#'resend' as Alternative to sendgrid
 @function_tool
-#resend as Alternative to sendgrid
 def  send_email(body:  str) -> Dict[str, str]:
 	""" Send out an email with the given body to all sales prospects via Resend """
 	# Set up email sender, recipient, and content
@@ -1054,23 +978,26 @@ import os
 from sendgrid.helpers.mail import Mail, Email, To, Content
 import asyncio
 import requests
-import certifi
 
 load_dotenv(override=True)
-os.environ['SSL_CERT_FILE'] = certifi.where()
+
 
 class EmailService:
+
     @staticmethod
-    def send_test_email():
+    @function_tool
+    def send_email(body: str):
         sg = sendgrid.SendGridAPIClient(api_key=os.environ.get('SENDGRID_API_KEY'))
         from_email = Email("kejxxx@gmail.com")
         to_email = To("mkejxxx@gmail.com")
-        content = Content("text/plain", "This is an important test email")
-        mail = Mail(from_email, to_email, "Test email", content).get()
-        response = sg.client.mail.send.post(request_body=mail)
-        print(response.status_code)
+        content = Content("text/plain", body)
+        mail = Mail(from_email, to_email, "Sales email", content).get()
+        sg.client.mail.send.post(request_body=mail)
+        return {"status": "success"}
 
+	#Resend as an alternative to sendgrid
     @staticmethod
+	@function_tool
     def send_resend_email(body: str):
         from_email = "onboarding@resend.dev"
         to_email = "kejxxx@gmail.com"
@@ -1087,17 +1014,6 @@ class EmailService:
         }
         response = requests.post("https://api.resend.com/emails", json=payload, headers=headers)
         return {"status": "success"} if response.status_code == 202 else {"status": "failure", "message": response.text}
-
-    @staticmethod
-    @function_tool
-    def send_email(body: str):
-        sg = sendgrid.SendGridAPIClient(api_key=os.environ.get('SENDGRID_API_KEY'))
-        from_email = Email("kejxxx@gmail.com")
-        to_email = To("mkejxxx@gmail.com")
-        content = Content("text/plain", body)
-        mail = Mail(from_email, to_email, "Sales email", content).get()
-        sg.client.mail.send.post(request_body=mail)
-        return {"status": "success"}
 
     @staticmethod
     @function_tool
