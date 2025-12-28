@@ -2032,3 +2032,318 @@ The key insights for LLM Engineers are:
 6. **Observability**: Implement comprehensive tracing for debugging
 
 These patterns form the foundation for building scalable, secure, and maintainable agent-based systems in production environments.
+
+
+
+----
+
+# Deep Research Agent
+
+## Overview
+
+This guide provides a thorough explanation of building a Deep Research Agent using OpenAI's Agents SDK, one of the classic use cases in Agentic AI. The system demonstrates how to create autonomous agents that can search the internet, synthesize information, and generate comprehensive reports.
+> a sanitized version of the code is located in code folder
+
+## Core Architecture
+
+The Deep Research Agent follows a multi-agent architecture with specialized roles:
+
+1. **Search Agent** - Executes web searches using OpenAI's hosted tools
+2. **Planner Agent** - Determines optimal search strategies using structured outputs
+3. **Writer Agent** - Synthesizes research into comprehensive reports
+4. **Email Agent** - Formats and delivers final reports
+
+## Key Concepts
+
+### 1. Hosted Tools
+
+OpenAI provides three hosted tools that run remotely:
+- **WebSearchTool** - Web search capabilities (Made available by openAI - expensive!)
+- **FileSearchTool** - Vector store searches
+- **ComputerTool** - Screenshot and computer automation
+
+The WebSearchTool costs approximately 2.5 cents per call, making cost management important for production use.
+
+### 2. Structured Outputs
+
+Structured outputs use Pydantic models to enforce response schemas, ensuring consistent data formats between agents. This is crucial for agent-to-agent communication.
+
+### 3. Asynchronous Processing
+
+The system uses asyncio for parallel execution of multiple searches, significantly improving performance when handling multiple queries simultaneously.
+
+## Implementation Details
+
+### Search Agent Implementation
+
+```python
+INSTRUCTIONS = "You are a research assistant. Given a search term, you search the web for that term and \
+produce a concise summary of the results. The summary must 2-3 paragraphs and less than 300 \
+words. Capture the main points. Write succintly, no need to have complete sentences or good \
+grammar. This will be consumed by someone synthesizing a report, so it's vital you capture the \
+essence and ignore any fluff. Do not include any additional commentary other than the summary itself."
+
+search_agent = Agent(
+    name="Search agent",
+    instructions=INSTRUCTIONS,
+    tools=[WebSearchTool(search_context_size="low")],
+    model="gpt-4o-mini",
+    model_settings=ModelSettings(tool_choice="required"),
+)
+```
+
+**Key Technical Points:**
+- Uses OpenAI's hosted WebSearchTool with "low" context size for cost optimization
+- `tool_choice="required"` ensures the agent must use the search tool
+- Instructions emphasize concise, factual summaries optimized for downstream processing
+- The agent acts as a wrapper around the hosted search functionality
+
+### Planner Agent with Structured Outputs
+
+> improve the search query before sending it to `search_agent`
+```python
+class WebSearchItem(BaseModel):
+    reason: str = Field(description="Your reasoning for why this search is important to the query.")
+    query: str = Field(description="The search term to use for the web search.")
+
+class WebSearchPlan(BaseModel):
+    searches: list[WebSearchItem] = Field(description="A list of web searches to perform to best answer the query.")
+
+planner_agent = Agent(
+    name="PlannerAgent",
+    instructions=INSTRUCTIONS,
+    model="gpt-4o-mini",
+    output_type=WebSearchPlan,
+)
+```
+
+**Technical Analysis:**
+- **Structured Outputs**: Uses Pydantic BaseModel to enforce response schema
+- **Field Descriptions**: Critical for providing context to the model about field purposes
+- **Chain of Thought**: Requesting "reason" before "query" encourages better reasoning
+- **JSON Conversion**: Behind the scenes, Pydantic models are converted to JSON schemas for the model
+
+### Writer Agent for Report Generation
+
+```python
+class ReportData(BaseModel):
+    short_summary: str = Field(description="A short 2-3 sentence summary of the findings.")
+    markdown_report: str = Field(description="The final report")
+    follow_up_questions: list[str] = Field(description="Suggested topics to research further")
+
+writer_agent = Agent(
+    name="WriterAgent",
+    instructions=INSTRUCTIONS,
+    model="gpt-4o-mini",
+    output_type=ReportData,
+)
+```
+
+**Key Features:**
+- Generates structured reports with summary, full content, and follow-up suggestions
+- Uses markdown format for rich text formatting
+- Aims for 1000+ words and 5-10 pages of content
+
+### Email Agent with Function Tools
+
+```python
+@function_tool
+def send_email(subject: str, html_body: str) -> Dict[str, str]:
+    """ Send out an email with the given subject and HTML body """
+    sg = sendgrid.SendGridAPIClient(api_key=os.environ.get('SENDGRID_API_KEY'))
+    from_email = Email("kejxxx@gmail.com")
+    to_email = To("mkejxxx@gmail.com")
+    content = Content("text/html", html_body)
+    mail = Mail(from_email, to_email, subject, content).get()
+    sg.client.mail.send.post(request_body=mail)
+    return "success"
+
+email_agent = Agent(
+    name="Email agent",
+    instructions=INSTRUCTIONS,
+    tools=[send_email],
+    model="gpt-4o-mini",
+)
+```
+
+**Technical Details:**
+- Uses `@function_tool` decorator to convert Python functions into agent tools
+- Integrates with SendGrid for email delivery
+- Converts markdown reports to HTML format
+- Agent has full discretion over subject line and formatting
+
+## Workflow Implementation
+
+### Core Workflow Functions
+
+#### 1. Search Planning
+```python
+async def plan_searches(query: str):
+    """ Use the planner_agent to plan which searches to run for the query """
+    print("Planning searches...")
+    result = await Runner.run(planner_agent, f"Query: {query}")
+    print(f"Will perform {len(result.final_output.searches)} searches")
+    return result.final_output
+
+	#e.g. searches=[WebSearchItem(reason='To find the most recent and trending AI agent frameworks in 2025.', query='latest AI agent frameworks 2025'), WebSearchItem(reason='To look for reports or articles that discuss the advancements in AI agent frameworks for the year 2025.', query='AI agent frameworks 2025 news'), WebSearchItem(reason='To identify emerging technologies and tools specifically designed for AI agents that were popular or released in 2025.', query='new AI agent technologies 2025')]
+
+```
+
+#### 2. Parallel Search Execution
+```python
+async def perform_searches(search_plan: WebSearchPlan):
+    """ Call search() for each item in the search plan """
+    print("Searching...")
+    tasks = [asyncio.create_task(search(item)) for item in search_plan.searches]
+    results = await asyncio.gather(*tasks)
+    print("Finished searching")
+    return results
+
+async def search(item: WebSearchItem):
+    """ Use the search agent to run a web search for each item in the search plan """
+    input = f"Search term: {item.query}\nReason for searching: {item.reason}"
+    result = await Runner.run(search_agent, input)
+    return result.final_output
+```
+
+**Asynchronous Processing Benefits:**
+- Multiple searches execute in parallel using `asyncio.gather()`
+- Significantly reduces total execution time
+- Each search task is independent and can run concurrently
+- Provides context (reason) to search agent for better results
+
+#### 3. Report Generation and Delivery
+```python
+async def write_report(query: str, search_results: list[str]):
+    """ Use the writer agent to write a report based on the search results"""
+    print("Thinking about report...")
+    input = f"Original query: {query}\nSummarized search results: {search_results}"
+    result = await Runner.run(writer_agent, input)
+    print("Finished writing report")
+    return result.final_output
+
+async def send_email(report: ReportData):
+    """ Use the email agent to send an email with the report """
+    print("Writing email...")
+    result = await Runner.run(email_agent, report.markdown_report)
+    print("Email sent")
+    return report
+```
+
+### Main Execution Flow
+
+```python
+query = "Latest AI Agent frameworks in 2025"
+
+with trace("Research trace"):
+    print("Starting research...")
+    search_plan = await plan_searches(query)
+    search_results = await perform_searches(search_plan)
+    report = await write_report(query, search_results)
+    await send_email(report)  
+    print("Hooray!")
+```
+
+**Execution Sequence:**
+1. **Planning Phase**: Planner agent creates search strategy
+2. **Research Phase**: Multiple searches execute in parallel
+3. **Synthesis Phase**: Writer agent creates comprehensive report
+4. **Delivery Phase**: Email agent formats and sends results
+
+## Advanced Technical Concepts
+
+### Chain of Thought Prompting
+The system implements chain of thought prompting by requesting reasoning before queries:
+- Models predict tokens sequentially
+- Asking for reasoning first improves subsequent query quality
+- Creates coherent, logical search strategies
+- Leverages next-token prediction behavior for better outcomes
+
+### Cost Optimization Strategies
+- Use `search_context_size="low"` for reduced costs
+- Limit number of searches (configurable via `HOW_MANY_SEARCHES`)
+- Choose cost-effective models (gpt-4o-mini vs gpt-4)
+- Monitor API usage through OpenAI dashboard
+
+### Error Handling and Robustness
+- Environment variable validation for API keys
+- Structured outputs prevent malformed responses
+- Async error handling for parallel operations
+- Trace functionality for debugging and monitoring
+
+### Scalability Considerations
+- Parallel processing reduces latency
+- Modular agent design allows independent scaling
+- Configurable search depth based on requirements
+- Stateless design enables horizontal scaling
+
+## Production Deployment Considerations
+
+### Security
+- Email validation and sanitization
+- Rate limiting for cost control
+- Input validation for search queries
+
+### Monitoring and Observability
+- OpenAI trace integration for debugging
+- Cost tracking and alerting
+- Performance metrics collection
+- Error logging and alerting
+
+### Configuration Management
+- Configurable search parameters
+- Model selection flexibility
+- Email template customization
+- Search result limits
+
+## Extension Possibilities
+
+### Enhanced Search Capabilities
+- Multiple search providers integration
+- Domain-specific search filtering
+- Real-time vs cached results
+- Search result ranking and filtering
+
+### Advanced Report Generation
+- Multi-format output (PDF, Word, etc.)
+- Custom report templates
+- Citation and reference management
+- Visual content integration
+
+### Workflow Enhancements
+- User approval workflows
+- Scheduled research tasks
+- Multi-language support
+- Collaborative research features
+
+## Best Practices
+
+### Prompt Engineering
+- Clear, specific instructions for each agent
+- Context-aware prompting with reasoning chains
+- Structured output schemas for consistency
+- Error handling instructions
+
+### Agent Design Patterns
+- Single responsibility principle for agents
+- Loose coupling between agent components
+- Standardized communication protocols
+- Graceful degradation strategies
+
+### Performance Optimization
+- Async/await for I/O bound operations
+- Parallel processing where possible
+- Caching strategies for repeated queries
+- Resource pooling for API connections
+
+### Testing and Validation
+- Unit tests for individual agents
+- Integration tests for full workflows
+- Cost simulation and budgeting
+- Output quality validation
+
+## Conclusion
+
+The Deep Research Agent demonstrates sophisticated agentic AI patterns including multi-agent orchestration, structured outputs, asynchronous processing, and hosted tool integration. This architecture provides a foundation for building production-ready research automation systems while maintaining cost efficiency and scalability.
+
+The modular design allows for easy extension and customization, making it applicable across various business domains and use cases. The combination of OpenAI's hosted tools with custom agent logic creates a powerful platform for automated research and reporting.
