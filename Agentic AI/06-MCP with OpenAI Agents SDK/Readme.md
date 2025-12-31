@@ -136,6 +136,9 @@ async with MCPServerStdio(params=fetch_params, client_session_timeout_seconds=60
 ```python
 from agents import Agent, Runner, trace
 
+sandbox_path = os.path.abspath(os.path.join(os.getcwd(), "[Your Folder Name]"))
+files_params = {"command": "npx", "args": ["-y", "@modelcontextprotocol/server-filesystem", sandbox_path]}
+
 async with MCPServerStdio(params=files_params, client_session_timeout_seconds=60) as mcp_server_files:
     async with MCPServerStdio(params=playwright_params, client_session_timeout_seconds=60) as mcp_server_browser:
         agent = Agent(
