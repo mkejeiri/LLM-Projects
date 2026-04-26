@@ -72,24 +72,14 @@
 
 ## Agentic System Architecture
 
-  
-
 ### Workflow vs Agent Distinction
 
-  
-
 | Aspect | Workflows | Agents |
-
 |--------|-----------|---------|
-
 |  **Path**  | Predefined, fixed sequence | Dynamic, self-directed |
-
 |  **Control**  | External orchestration | Internal model control |
-
 |  **Predictability**  | High | Variable |
-
 |  **Flexibility**  | Limited | High |
-
 |  **Complexity**  | Lower | Higher |
 
   
