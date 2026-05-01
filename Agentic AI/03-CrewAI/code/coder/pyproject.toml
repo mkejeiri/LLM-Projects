@@ -1,0 +1,22 @@
+# CrewAI project configuration - also a uv project
+[project]
+name = "coder"
+version = "0.1.0"
+description = "Coder agent crew using crewAI - writes and executes Python in Docker"
+requires-python = ">=3.10,<3.13"
+dependencies = [
+    "crewai[tools]>=0.108.0,<1.0.0",
+]
+
+# Entry point: 'crewai run' calls coder.main:run
+[project.scripts]
+coder = "coder.main:run"
+run_crew = "coder.main:run"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+# Marks this as a crew-type project for the crewai CLI
+[tool.crewai]
+type = "crew"

@@ -1,0 +1,22 @@
+# CrewAI project configuration - also a uv project
+[project]
+name = "stock_picker"
+version = "0.1.0"
+description = "Stock picker crew using crewAI - hierarchical process, structured outputs, custom tool"
+requires-python = ">=3.10,<3.13"
+dependencies = [
+    "crewai[tools]>=0.108.0,<1.0.0",
+]
+
+# Entry point: 'crewai run' calls stock_picker.main:run
+[project.scripts]
+stock_picker = "stock_picker.main:run"
+run_crew = "stock_picker.main:run"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+# Marks this as a crew-type project for the crewai CLI
+[tool.crewai]
+type = "crew"
