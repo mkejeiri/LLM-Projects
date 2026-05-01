@@ -626,7 +626,7 @@ CrewAI supports typed task outputs using Pydantic models. This is a powerful way
 
 ### Why Use Structured Outputs
 
-From the transcript: "By giving the fields with that name and with that description, we are going to force the agent to produce that information in its response. It's a really clever way of making sure that we guide the agent's behavior."
+"By giving the fields with that name and with that description, we are going to force the agent to produce that information in its response. It's a really clever way of making sure that we guide the agent's behavior."
 
 **Benefits**:
 - Reliable data flow between tasks (downstream tasks know exactly what format to expect)
@@ -1370,7 +1370,7 @@ This is the capstone CrewAI project — a full engineering team that designs, im
 
 **Why this assignment?** The requirements produce a trading account management system that gets reused. This is a "two for one" — building the crew AND generating useful code for future projects.
 
-**Key architectural decisions from the transcript**:
+**Key architectural decisions**:
 - Engineering lead does NOT get code execution (it only designs)
 - Frontend engineer does NOT get code execution (running Gradio in Docker would be a different ball game)
 - Backend engineer and test engineer DO get code execution (they need to run and verify code)
@@ -1588,7 +1588,7 @@ output/
 └── test_accounts.py        # Unit tests
 ```
 
-**Results from the transcript**:
+**Results**:
 - The generated `accounts.py` included proper docstrings, validation logic, and even defensive copying of holdings (`.copy()`) — "a pro thing I wouldn't have thought of myself"
 - The Gradio UI had tabs for Account Management, Trading, and Reports — fully functional
 - Running `uv run app.py` launched a working web interface for the trading simulator
@@ -1790,7 +1790,7 @@ output/
 └── decision.md                # Free-form markdown report
 ```
 
-**Observations from the transcript**:
+**Observations**:
 - The hierarchical process is "less predictable" — the manager has autonomy in how it assigns tasks
 - Despite this, it "actually performed really well" — the manager went through the process correctly
 - On one run it recommended Anthropic (interesting since OpenAI was doing the processing)
@@ -1799,7 +1799,7 @@ output/
 
 ### Extension: Callbacks & Dynamic Task Creation
 
-CrewAI provides callback hooks at multiple levels. The transcript mentions the scaffolding code that gets generated includes "functions that get called at the beginning and end" — these are the `@before_kickoff` and `@after_kickoff` decorators.
+CrewAI provides callback hooks at multiple levels. The scaffolding code that gets generated includes "functions that get called at the beginning and end" — these are the `@before_kickoff` and `@after_kickoff` decorators.
 
 **Practical example**: The stock picker uses memory so it "doesn't pick the same company twice." But what if you wanted to dynamically research a variable number of companies based on what the first task finds? Callbacks enable this.
 
