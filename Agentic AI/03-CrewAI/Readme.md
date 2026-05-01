@@ -686,7 +686,7 @@ def research_trending_companies(self) -> Task:
 
 **Output file format**: When using `output_pydantic`, the `output_file` should use `.json` extension since the output will be valid JSON conforming to the schema.
 
-**Pro tip on terminology**: Use consistent, simple terms across your schemas, agents, and tasks. The instructor found that using inconsistent language (e.g., calling them "newsworthy companies" in one place and "trending companies" in another) caused less stable outputs. Simple, repeated terminology = more coherent responses.
+**Pro tip on terminology**: Use consistent, simple terms across your schemas, agents, and tasks. Experience showed that using inconsistent language (e.g., calling them "newsworthy companies" in one place and "trending companies" in another) caused less stable outputs. Simple, repeated terminology = more coherent responses.
 
 ---
 
@@ -803,7 +803,7 @@ manager:
 
 **Key difference**: In hierarchical mode, the manager LLM decides task assignment and ordering. Worker agents may be called multiple times or in different orders based on the manager's judgment.
 
-**Important details from the transcript**:
+**Important details ot keep in mind**:
 
 - The manager agent is created **separately** — it's NOT decorated with `@agent` and NOT in `self.agents`. It's passed directly to the Crew via `manager_agent=`.
 - `allow_delegation=True` on the manager is the equivalent of **handoff** in OpenAI Agents SDK
@@ -859,7 +859,7 @@ def coder(self) -> Agent:
     )
 ```
 
-From the transcript: "It seems almost so good. I had to close down Docker to make sure that it failed when it was closed because I almost couldn't believe it was happening. It's that simple."
+NOTE >> It seems almost so good that I had to close down Docker to make sure that it failed when it was closed because I almost couldn't believe it was happening. It's that simple.
 
 ### Docker Sandboxing
 
@@ -879,7 +879,7 @@ From the transcript: "It seems almost so good. I had to close down Docker to mak
 
 ### Proving Real Execution
 
-The transcript uses a clever test: calculate the first 10,000 terms of `1 - 1/3 + 1/5 - 1/7 + ...` multiplied by 4. This approximates pi, but with only 10,000 terms it gives ~3.14149 (not exact 3.14159). An LLM could predict "pi" from training data, but it can't predict the *inexact* approximation without actually running the computation. The imprecise result proves real execution happened.
+We are using a clever test: calculate the first 10,000 terms of `1 - 1/3 + 1/5 - 1/7 + ...` multiplied by 4. This approximates pi, but with only 10,000 terms it gives ~3.14149 (not exact 3.14159). An LLM could predict "pi" from training data, but it can't predict the *inexact* approximation without actually running the computation. The imprecise result proves real execution happened.
 
 ---
 
@@ -908,7 +908,7 @@ analysis_task:
   output_file: output/report.md
 ```
 
-**Key insight from the transcript**: "The second agent that did the summary was taking advantage of the output from the first agent, because that was included in its context. And that's how it was able to give what it gave."
+**Key insight**: "The second agent that did the summary was taking advantage of the output from the first agent, because that was included in its context. And that's how it was able to give what it gave."
 
 ### Multi-Task Context (Engineering Team)
 
@@ -1243,7 +1243,7 @@ def run():
 4. Analyst agent receives the research output via `context`
 5. Analyst writes a polished report → saved to `output/report.md`
 
-**Pro tip from the transcript**: You can swap models freely. If for instance you try DeepSeek for research and Groq (Llama 3 70B) for analysis. The model flexibility via LiteLLM means you can experiment with cost/speed/quality tradeoffs per agent.
+**Pro tip**: You can swap models freely. If for instance you try DeepSeek for research and Groq (Llama 3 70B) for analysis. The model flexibility via LiteLLM means you can experiment with cost/speed/quality tradeoffs per agent.
 
 ### Example 3: Coder Agent (Code Execution in Docker)
 
