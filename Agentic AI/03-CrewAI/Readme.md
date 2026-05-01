@@ -961,7 +961,7 @@ The `context` mechanism is how CrewAI implements the **Orchestrator-Worker** and
 
 ### Example 1: The Debate Crew (Full Walkthrough)
 
-This is the introductory CrewAI project from the course — a debate between LLMs judged by a different model.
+This is the introductory CrewAI project — a debate between LLMs judged by a different model.
 
 **Concept**: One `debater` agent (GPT-4o-mini) argues both for and against a motion via two separate tasks. A `judge` agent (Claude) evaluates which side was more convincing. This demonstrates:
 - One agent handling multiple tasks
@@ -1099,7 +1099,7 @@ crewai run
 3. The judge agent (Claude) executes the `decide` task, seeing both arguments → writes `output/decide.md`
 4. `result.raw` contains the judge's final decision
 
-**Extension ideas** (from the course):
+**Extension ideas**:
 - Split the debater into two separate agents with different models (e.g., OpenAI vs DeepSeek)
 - Switch who proposes and who opposes to see if it changes the outcome
 - Create a leaderboard of which models are most persuasive
@@ -1107,7 +1107,7 @@ crewai run
 
 ### Example 2: Financial Researcher (Tools + Context)
 
-This is the second CrewAI project from the course — demonstrates **tools** (SerperDevTool for web search) and **context** (passing research output to the analyst).
+This is the second CrewAI project — demonstrates **tools** (SerperDevTool for web search) and **context** (passing research output to the analyst).
 
 **The problem**: Without a search tool, the researcher agent relies on its LLM's training data. Running against Tesla initially produced a report "as of October 2023" — clearly stale. Adding SerperDevTool fixed this immediately, producing current 2025 data.
 
@@ -1368,7 +1368,7 @@ The imprecise result (3.14149... not 3.14159...) proves the code was actually ex
 
 This is the capstone CrewAI project — a full engineering team that designs, implements, tests, and builds a UI for a software system. It demonstrates the true power of "crew" — multiple specialized agents collaborating on a complex task.
 
-**Why this assignment?** The requirements produce a trading account management system that gets reused in a later week of the course. This is a "two for one" — building the crew AND generating useful code for future projects.
+**Why this assignment?** The requirements produce a trading account management system that gets reused. This is a "two for one" — building the crew AND generating useful code for future projects.
 
 **Key architectural decisions from the transcript**:
 - Engineering lead does NOT get code execution (it only designs)
