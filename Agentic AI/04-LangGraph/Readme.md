@@ -1032,6 +1032,8 @@ The resulting graph visualization:
 - Solid line from tools → chatbot (always)
 - Dotted line from chatbot → end (only when no tool call)
 
+![Simple graph with tools](./pic/graph_simple.png)
+
 ---
 
 ## Checkpointing & Memory
@@ -1148,3 +1150,441 @@ Now memory survives kernel restarts. The SQLite database files appear in your wo
 7. **Persistence is trivial** — swap `MemorySaver` for `SqliteSaver` to survive restarts. One line change.
 
 8. **LangSmith** — automatic tracing shows the full execution chain, costs, latency, and errors. Essential for debugging tool loops.
+
+---
+
+# LangGraph — Part 3: Playwright, Async, Structured Outputs & Multi-Agent Flow (Project Sidekick)
+
+## Table of Contents (Part 3)
+- [Async LangGraph](#async-langgraph)
+- [Playwright Browser Automation](#playwright-browser-automation)
+  - [What is Playwright?](#what-is-playwright)
+  - [LangChain Playwright Toolkit](#langchain-playwright-toolkit)
+  - [Single Agent with Browser Tools (Lab 3)](#single-agent-with-browser-tools-lab-3)
+- [Structured Outputs in LangGraph](#structured-outputs-in-langgraph)
+- [Multi-Agent Workflow: The Sidekick (Lab 4)](#multi-agent-workflow-the-sidekick-lab-4)
+  - [Architecture Overview](#architecture-overview)
+  - [Rich State for Multi-Agent Flows](#rich-state-for-multi-agent-flows)
+  - [The Worker Node](#the-worker-node)
+  - [The Worker Router](#the-worker-router)
+  - [The Evaluator Node](#the-evaluator-node)
+  - [The Evaluation Router](#the-evaluation-router)
+  - [Graph Assembly](#graph-assembly)
+  - [The Sidekick UI](#the-sidekick-ui)
+- [LangSmith Trace: Full Flow Example](#langsmith-trace-full-flow-example)
+- [Part 3 Key Takeaways](#part-3-key-takeaways)
+
+---
+
+## Async LangGraph
+
+LangGraph supports asynchronous execution — essential when working with I/O-heavy tools like browser automation.
+
+```python
+# Sync vs Async equivalents:
+
+# Running a tool
+tool.run(inputs)           # sync
+await tool.arun(inputs)    # async
+
+# Invoking the graph
+graph.invoke(state)        # sync
+await graph.ainvoke(state) # async
+```
+
+For notebooks, you need `nest_asyncio` to allow nested event loops (Jupyter already runs one):
+
+```python
+import nest_asyncio
+nest_asyncio.apply()  # Patches asyncio to allow event loop within event loop
+# Not needed when running as a standalone Python module
+```
+
+---
+
+## Playwright Browser Automation
+
+### What is Playwright?
+
+[Playwright](https://playwright.dev/) is Microsoft's browser automation framework — the next generation of Selenium. It:
+
+- Launches and controls a real browser (Chromium, Firefox, WebKit)
+- Renders JavaScript, paints pages (unlike raw HTTP requests)
+- Supports **headless** (invisible) or **headful** (visible window) modes
+- Commonly used for testing and web scraping
+
+Installation:
+```bash
+playwright install  # Windows/macOS
+# Linux: see Playwright docs for additional dependencies
+```
+
+### LangChain Playwright Toolkit
+
+LangChain provides a pre-built toolkit that wraps Playwright into LangGraph-compatible tools:
+
+```python
+from langchain_community.agent_toolkits import PlayWrightBrowserToolkit
+from langchain_community.tools.playwright.utils import create_async_playwright_browser
+
+# Launch a visible browser window
+async_browser = create_async_playwright_browser(headless=False)
+# Build the toolkit from the browser instance
+toolkit = PlayWrightBrowserToolkit.from_browser(async_browser=async_browser)
+# Extract all available tools
+tools = toolkit.get_tools()
+```
+
+Available tools in the toolkit:
+| Tool | Description |
+|------|-------------|
+| `click_element` | Click on an element in the page |
+| `navigate_browser` | Navigate to a URL |
+| `previous_webpage` | Go back (like pressing the back button) |
+| `extract_text` | Extract all text from the current page |
+| `extract_hyperlinks` | Get all hyperlinks from the page |
+| `get_elements` | Get specific DOM elements |
+| `current_webpage` | Get the current URL |
+
+Using tools directly (without an LLM):
+
+```python
+# Build a dict for easy access by name
+tool_dict = {tool.name: tool for tool in tools}
+navigate_tool = tool_dict["navigate_browser"]
+extract_text_tool = tool_dict["extract_text"]
+
+# Navigate to CNN and extract text — pure Playwright, no LLM involved
+await navigate_tool.arun({"url": "https://www.cnn.com"})
+text = await extract_text_tool.arun({})
+print(text)  # Full rendered page text
+```
+
+### Single Agent with Browser Tools (Lab 3)
+
+Combine Playwright tools + push notification into a single agent graph:
+
+```python
+# Add custom tool to the Playwright toolkit
+tools.append(tool_push)
+
+# Create LLM and bind ALL tools (Playwright + custom)
+llm = ChatOpenAI(model="gpt-4o-mini", base_url=os.environ["OPENROUTER_BASE_URL"], api_key=os.environ["OPENROUTER_API_KEY"])
+llm_with_tools = llm.bind_tools(tools)
+
+# Standard chatbot node — same pattern as Part 2
+def chatbot(state: State):
+    return {"messages": [llm_with_tools.invoke(state["messages"])]}
+
+# Build graph (identical structure to Part 2)
+graph_builder = StateGraph(State)
+graph_builder.add_node("chatbot", chatbot)
+graph_builder.add_node("tools", ToolNode(tools=tools))
+graph_builder.add_conditional_edges("chatbot", tools_condition, "tools")
+graph_builder.add_edge("tools", "chatbot")
+graph_builder.add_edge(START, "chatbot")
+
+memory = MemorySaver()
+graph = graph_builder.compile(checkpointer=memory)
+```
+
+With this, the agent can autonomously browse the web, extract information, and send push notifications — all driven by the LLM deciding which tools to call.
+
+---
+
+## Structured Outputs in LangGraph
+
+Structured outputs force the LLM to respond with JSON conforming to a Pydantic schema. In LangGraph, this is used to get **typed, parseable decisions** from evaluator agents.
+
+```python
+from pydantic import BaseModel, Field
+
+# Define the schema the LLM must conform to
+class EvaluatorOutput(BaseModel):
+    feedback: str = Field(description="Feedback on the assistant's response")
+    success_criteria_met: bool = Field(description="Whether the success criteria have been met")
+    user_input_needed: bool = Field(
+        description="True if more input is needed from the user, or clarifications, or the assistant is stuck"
+    )
+```
+
+Binding structured output to an LLM:
+
+```python
+# with_structured_output wraps the LLM to:
+# 1. Include the JSON schema in the request
+# 2. Parse the JSON response into the Pydantic object automatically
+evaluator_llm = ChatOpenAI(model="gpt-4o-mini", base_url=os.environ["OPENROUTER_BASE_URL"], api_key=os.environ["OPENROUTER_API_KEY"])
+evaluator_llm_with_output = evaluator_llm.with_structured_output(EvaluatorOutput)
+
+# When invoked, returns an EvaluatorOutput instance (not raw text)
+result = evaluator_llm_with_output.invoke(messages)
+result.feedback              # str
+result.success_criteria_met  # bool
+result.user_input_needed     # bool
+```
+
+> **Note:** Not all models support structured outputs. If yours doesn't, fall back to prompting for JSON manually and parsing the response yourself.
+
+---
+
+## Multi-Agent Workflow: The Sidekick (Lab 4)
+
+### Architecture Overview
+
+The Sidekick implements the **Evaluator-Optimizer** pattern (from Anthropic's taxonomy) with a cyclic graph:
+
+```
+START → worker → (tools_condition) → tools → worker → ... → evaluator → (route) → worker OR END
+```
+
+Two agents:
+1. **Worker** — the assistant that uses browser tools to complete tasks
+2. **Evaluator** — assesses the worker's response against success criteria, decides to accept or send back for more work
+
+This creates a true agent loop: the worker keeps trying until the evaluator is satisfied or determines user input is needed.
+
+### Rich State for Multi-Agent Flows
+
+Unlike Parts 1–2 (just `messages`), the Sidekick has a **multi-field state**:
+
+```python
+class State(TypedDict):
+    messages: Annotated[List[Any], add_messages]  # Conversation history (has reducer)
+    success_criteria: str                          # What defines success (set by user)
+    feedback_on_work: Optional[str]               # Evaluator's feedback (set by evaluator)
+    success_criteria_met: bool                     # Has the task been completed? (set by evaluator)
+    user_input_needed: bool                        # Does the user need to intervene? (set by evaluator)
+```
+
+**Key insight:** Only `messages` has a reducer (`add_messages`). All other fields are **overwritten** when a node returns them. This means:
+- `messages` accumulates across nodes (concatenation)
+- `success_criteria_met`, `feedback_on_work`, etc. are simple values that get replaced by the latest node's output
+
+### The Worker Node
+
+```python
+def worker(state: State) -> Dict[str, Any]:
+    # Build system prompt with success criteria from state
+    system_message = f"""You are a helpful assistant that can use tools to complete tasks.
+You keep working on a task until either you have a question or clarification for the user,
+or the success criteria is met.
+This is the success criteria:
+{state['success_criteria']}
+You should reply either with a question for the user about this assignment, or with your final response.
+If you have a question for the user, reply by clearly stating your question.
+If you've finished, reply with the final answer, and don't ask a question."""
+
+    # If evaluator sent feedback (task was rejected), include it
+    if state.get("feedback_on_work"):
+        system_message += f"""
+Previously you thought you completed the assignment, but your reply was rejected because
+the success criteria was not met.
+Here is the feedback on why this was rejected:
+{state['feedback_on_work']}
+With this feedback, please continue the assignment, ensuring that you meet the success criteria."""
+
+    # Insert/replace system message in the message list
+    messages = state["messages"]
+    found = False
+    for msg in messages:
+        if isinstance(msg, SystemMessage):
+            msg.content = system_message
+            found = True
+    if not found:
+        messages = [SystemMessage(content=system_message)] + messages
+
+    # Invoke LLM with tools — it decides whether to use a tool or give a final answer
+    response = worker_llm_with_tools.invoke(messages)
+    return {"messages": [response]}
+```
+
+### The Worker Router
+
+Routes the worker's output: if it requested a tool call → tools node; otherwise → evaluator.
+
+```python
+def worker_router(state: State) -> str:
+    last_message = state["messages"][-1]
+    # Check if the LLM wants to call a tool
+    if hasattr(last_message, "tool_calls") and last_message.tool_calls:
+        return "tools"       # Go execute the tool
+    else:
+        return "evaluator"   # No tool call → send to evaluator for assessment
+```
+
+### The Evaluator Node
+
+```python
+def format_conversation(messages: List[Any]) -> str:
+    """Utility: converts message objects to readable 'User: ... / Assistant: ...' format"""
+    conversation = "Conversation history:\n\n"
+    for message in messages:
+        if isinstance(message, HumanMessage):
+            conversation += f"User: {message.content}\n"
+        elif isinstance(message, AIMessage):
+            text = message.content or "[Tools use]"
+            conversation += f"Assistant: {text}\n"
+    return conversation
+
+def evaluator(state: State) -> State:
+    last_response = state["messages"][-1].content
+
+    system_message = """You are an evaluator that determines if a task has been completed successfully.
+Assess the Assistant's last response based on the given criteria.
+Respond with your feedback, and with your decision on whether the success criteria has been met,
+and whether more input is needed from the user."""
+
+    user_message = f"""You are evaluating a conversation between the User and Assistant.
+The entire conversation is:
+{format_conversation(state['messages'])}
+
+The success criteria for this assignment is:
+{state['success_criteria']}
+
+The final response from the Assistant that you are evaluating is:
+{last_response}
+
+Respond with your feedback, and decide if the success criteria is met.
+Also, decide if more user input is required."""
+
+    # If prior feedback exists, warn about repeated mistakes
+    if state["feedback_on_work"]:
+        user_message += f"\nAlso, note that in a prior attempt, you provided this feedback: {state['feedback_on_work']}\n"
+        user_message += "If the Assistant is repeating the same mistakes, consider responding that user input is required."
+
+    evaluator_messages = [SystemMessage(content=system_message), HumanMessage(content=user_message)]
+
+    # Invoke with structured output — returns EvaluatorOutput Pydantic object
+    eval_result = evaluator_llm_with_output.invoke(evaluator_messages)
+
+    # Return new state with evaluator's decisions
+    return {
+        "messages": [{"role": "assistant", "content": f"Evaluator Feedback on this answer: {eval_result.feedback}"}],
+        "feedback_on_work": eval_result.feedback,
+        "success_criteria_met": eval_result.success_criteria_met,
+        "user_input_needed": eval_result.user_input_needed
+    }
+```
+
+### The Evaluation Router
+
+```python
+def route_based_on_evaluation(state: State) -> str:
+    # Two cases where we return to the user:
+    # 1. Success — task is done
+    # 2. Stuck — assistant needs user clarification
+    if state["success_criteria_met"] or state["user_input_needed"]:
+        return "END"
+    else:
+        return "worker"  # Send back for another attempt with feedback
+```
+
+### Graph Assembly
+
+```python
+graph_builder = StateGraph(State)
+
+# Three nodes: worker, tools, evaluator
+graph_builder.add_node("worker", worker)
+graph_builder.add_node("tools", ToolNode(tools=tools))
+graph_builder.add_node("evaluator", evaluator)
+
+# Worker routes to tools OR evaluator
+graph_builder.add_conditional_edges("worker", worker_router, {"tools": "tools", "evaluator": "evaluator"})
+# Tools always return to worker
+graph_builder.add_edge("tools", "worker")
+# Evaluator routes to worker (retry) OR END (done/stuck)
+graph_builder.add_conditional_edges("evaluator", route_based_on_evaluation, {"worker": "worker", "END": END})
+# Entry point
+graph_builder.add_edge(START, "worker")
+
+memory = MemorySaver()
+graph = graph_builder.compile(checkpointer=memory)
+```
+
+The resulting graph: `START → worker ⇄ tools` (loop) `→ evaluator → worker` (retry) or `→ END`
+
+![Sidekick multi-agent graph](./pic/graph_sidekick.png)
+
+### The Sidekick UI
+
+```python
+def make_thread_id() -> str:
+    """Generate unique thread ID per session — separate memory for each user"""
+    return str(uuid.uuid4())
+
+async def process_message(message, success_criteria, history, thread):
+    config = {"configurable": {"thread_id": thread}}
+
+    # Initial state with user's message and success criteria
+    state = {
+        "messages": message,
+        "success_criteria": success_criteria,
+        "feedback_on_work": None,
+        "success_criteria_met": False,
+        "user_input_needed": False
+    }
+
+    # Run the full graph (may loop multiple times internally)
+    result = await graph.ainvoke(state, config=config)
+
+    # Package results for Gradio display
+    user = {"role": "user", "content": message}
+    reply = {"role": "assistant", "content": result["messages"][-2].content}      # Worker's answer
+    feedback = {"role": "assistant", "content": result["messages"][-1].content}    # Evaluator's feedback
+    return history + [user, reply, feedback]
+```
+
+Each Gradio session gets a unique `thread_id` via `uuid.uuid4()` — this means multiple users can use the Sidekick simultaneously with separate conversation memories.
+
+---
+
+## LangSmith Trace: Full Flow Example
+
+A real trace from the Sidekick asking "what is the current exchange rate usd/eur" with success criteria "accurate answer":
+
+```json
+{
+  "inputs": {
+    "messages": "what is the current exchange rate usd/eur",
+    "success_criteria": "accurate answer",
+    "success_criteria_met": false,
+    "user_input_needed": false
+  },
+  "outputs": {
+    "success_criteria_met": true,
+    "user_input_needed": false,
+    "feedback_on_work": "The assistant provided a specific exchange rate for USD to EUR, which meets the expectation for accuracy..."
+  }
+}
+```
+
+**What happened internally (visible in LangSmith):**
+1. Worker called `navigate_browser` → navigated to xe.com
+2. Worker called `extract_text` → extracted page content
+3. Worker provided final answer with the exchange rate
+4. Evaluator assessed the response → `success_criteria_met: true`
+5. Graph ended, returned to user
+
+**Cost:** ~2,352 tokens total, approximately 0.2 cents (1/5 of a cent) for the entire multi-step flow.
+
+---
+
+## Part 3 Key Takeaways
+
+1. **Playwright + LangGraph = browser-driving agent** — arm your agent with real browser tools (navigate, click, extract text) to interact with any website.
+
+2. **Async is essential for I/O tools** — use `await graph.ainvoke()` and `await tool.arun()` when tools involve network/browser operations.
+
+3. **Structured outputs** — `with_structured_output(PydanticModel)` forces the LLM to return typed, parseable decisions. Critical for routing logic.
+
+4. **Multi-agent = multiple nodes with conditional routing** — the worker/evaluator pattern creates a self-improving loop where the evaluator sends work back until criteria are met.
+
+5. **Rich state** — state can hold any fields you need (not just messages). Only fields with reducers accumulate; others get overwritten.
+
+6. **Prompt engineering is R&D** — the worker and evaluator prompts were refined through experimentation. There are no fixed rules — iterate based on what works for your model and task.
+
+7. **UUID thread IDs** — generate unique thread IDs per session to support multiple concurrent users with separate memories.
+
+8. **This is Anthropic's Evaluator-Optimizer pattern** — but with cycles (true agent autonomy), not just a fixed loop count.
