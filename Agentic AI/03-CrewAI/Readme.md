@@ -1109,7 +1109,7 @@ crewai run
 
 This is the second CrewAI project — demonstrates **tools** (SerperDevTool for web search) and **context** (passing research output to the analyst).
 
-**The problem**: Without a search tool, the researcher agent relies on its LLM's training data. Running against Tesla initially produced a report "as of October 2023" — clearly stale. Adding SerperDevTool fixed this immediately, producing current 2025 data.
+**The problem**: Without a search tool, the researcher agent relies on its LLM's training data. Running against Tesla initially produced a report "as of October 2023" — clearly stale. Adding SerperDevTool fixed this immediately, producing current 2026 data.
 
 **agents.yaml**:
 ```yaml
