@@ -1,37 +1,47 @@
-# LangGraph — Part 1: Foundations & First Graph
+# LangGraph — Complete Guide
 
 ## Table of Contents
-- [The LangChain Ecosystem](#the-langchain-ecosystem)
+
+- [1. Ecosystem & Philosophy](#1-ecosystem--philosophy)
+  - [The LangChain Ecosystem](#the-langchain-ecosystem)
   - [LangChain](#langchain)
   - [LangGraph](#langgraph)
   - [LangGraph Sub-Products](#langgraph-sub-products)
   - [LangSmith](#langsmith)
   - [Deep Dive: LangChain vs LangGraph](#deep-dive-langchain-vs-langgraph)
-- [Anthropic's Perspective: Building Effective Agents](#anthropics-perspective-building-effective-agents)
-  - [Agents vs Workflows](#agents-vs-workflows)
-  - [When (and When Not) to Use Agents](#when-and-when-not-to-use-agents)
-  - [On Frameworks](#on-frameworks)
-  - [The Augmented LLM (Building Block)](#the-augmented-llm-building-block)
-  - [Workflow Patterns](#workflow-patterns)
-  - [Autonomous Agents](#autonomous-agents)
-  - [Agent-Computer Interface (ACI)](#agent-computer-interface-aci)
-  - [Core Principles](#core-principles)
-- [LangGraph Terminology](#langgraph-terminology)
+  - [Anthropic's Perspective: Building Effective Agents](#anthropics-perspective-building-effective-agents)
+- [2. Core Concepts](#2-core-concepts)
   - [Graph](#graph)
   - [State](#state)
   - [Nodes](#nodes)
   - [Edges](#edges)
   - [Reducers](#reducers)
-- [The Annotated Type Hint](#the-annotated-type-hint)
-- [Immutable State](#immutable-state)
-- [The 5 Steps to Build a Graph](#the-5-steps-to-build-a-graph)
-- [Example 1: Silly Random Node (No LLM)](#example-1-silly-random-node-no-llm)
-- [Example 2: Real LLM Chatbot](#example-2-real-llm-chatbot)
-- [Key Takeaways](#key-takeaways)
+  - [The Annotated Type Hint](#the-annotated-type-hint)
+  - [Immutable State](#immutable-state)
+  - [Super Steps](#super-steps)
+  - [Pydantic BaseModel vs TypedDict](#pydantic-basemodel-vs-typeddict)
+- [3. Building Blocks: The 5 Steps](#3-building-blocks-the-5-steps)
+- [4. Environment Configuration](#4-environment-configuration)
+- [5. Progressive Examples](#5-progressive-examples)
+  - [Example A: Simple Graph (No LLM)](#example-a-simple-graph-no-llm)
+  - [Example B: LLM Chatbot (No Memory)](#example-b-llm-chatbot-no-memory)
+  - [Example C: Tools + Conditional Edges](#example-c-tools--conditional-edges)
+  - [Example D: Checkpointing & Memory](#example-d-checkpointing--memory)
+  - [Example E: Multi-Agent Evaluator-Optimizer](#example-e-multi-agent-evaluator-optimizer)
+  - [Example F: Production Sidekick](#example-f-production-sidekick)
+- [6. Prompt Engineering Lessons](#6-prompt-engineering-lessons)
+- [7. Safety & Caution](#7-safety--caution)
+- [8. Extension Ideas](#8-extension-ideas)
+  - [For LLM Engineers](#for-llm-engineers)
+  - [For Java Developers](#for-java-developers)
+  - [For Business Analysts Following Tech Trends](#for-business-analysts-following-tech-trends)
+  - [Cross-Role: Staying Current with Technology](#cross-role-staying-current-with-technology)
 
 ---
 
-## The LangChain Ecosystem
+## 1. Ecosystem & Philosophy
+
+### The LangChain Ecosystem
 
 LangChain (the company) offers three distinct products. Understanding how they relate is critical before diving into LangGraph.
 
@@ -197,18 +207,18 @@ They're complementary, not competing. But you can use LangGraph without LangChai
 
 ---
 
-## Anthropic's Perspective: Building Effective Agents
+### Anthropic's Perspective: Building Effective Agents
 
-The references Anthropic's blog post [Building Effective Agents](https://www.anthropic.com/engineering/building-effective-agents) are essential for reading. It provides a counterpoint to the framework-heavy approach and contains the design patterns referenced throughout the course. Here's a comprehensive summary:
+References Anthropic's blog post [Building Effective Agents](https://www.anthropic.com/engineering/building-effective-agents) — essential reading. It provides a counterpoint to the framework-heavy approach and contains the design patterns referenced throughout this guide.
 
-### Agents vs Workflows
+#### Agents vs Workflows
 
 Anthropic draws an important architectural distinction within "agentic systems":
 
 - **Workflows** — systems where LLMs and tools are orchestrated through **predefined code paths**. The developer controls the flow.
 - **Agents** — systems where LLMs **dynamically direct their own processes** and tool usage, maintaining control over how they accomplish tasks.
 
-### When (and When Not) to Use Agents
+#### When (and When Not) to Use Agents
 
 Anthropic's key recommendation: **find the simplest solution possible, and only increase complexity when needed.**
 
@@ -217,7 +227,7 @@ Anthropic's key recommendation: **find the simplest solution possible, and only 
 - **Agents** are better when flexibility and model-driven decision-making are needed at scale.
 - For many applications, **optimizing single LLM calls with retrieval and in-context examples is usually enough** — no agent needed.
 
-### On Frameworks
+#### On Frameworks
 
 > "These frameworks make it easy to get started by simplifying standard low-level tasks like calling LLMs, defining and parsing tools, and chaining calls together. However, they often create extra layers of abstraction that can obscure the underlying prompts and responses, making them harder to debug. They can also make it tempting to add complexity when a simpler setup would suffice."
 
@@ -225,20 +235,20 @@ Anthropic's key recommendation: **find the simplest solution possible, and only 
 
 From Anthropic's perspective: they have an API, it's relatively simple, memory is JSON objects, LLMs can be called directly. Building heavy abstraction layers that take you further from the LLM itself doesn't necessarily resonate with their philosophy. This is a different school of thought from LangGraph's — keep it in mind.
 
-### The Augmented LLM (Building Block)
+#### The Augmented LLM (Building Block)
 
 The foundational building block of all agentic systems is an **LLM enhanced with augmentations**:
 - **Retrieval** — the model generates its own search queries
 - **Tools** — the model selects appropriate tools to call
 - **Memory** — the model determines what information to retain
 
-Modern models can actively use all these capabilities. Anthropic's [Model Context Protocol (MCP)](https://www.anthropic.com/news/model-context-protocol) is their approach to integrating with third-party tools via a standard protocol (covered in section 6).
+Modern models can actively use all these capabilities. Anthropic's [Model Context Protocol (MCP)](https://www.anthropic.com/news/model-context-protocol) is their approach to integrating with third-party tools via a standard protocol.
 
-### Workflow Patterns
+#### Workflow Patterns
 
 Anthropic identifies **5 workflow patterns** that represent the most common production architectures:
 
-#### 1. Prompt Chaining
+##### 1. Prompt Chaining
 Decompose a task into a **sequence of steps**, where each LLM call processes the output of the previous one. Add programmatic checks ("gates") on intermediate steps.
 
 **Use when:** Task can be cleanly decomposed into fixed subtasks. Trade latency for accuracy by making each LLM call easier.
@@ -247,7 +257,7 @@ Decompose a task into a **sequence of steps**, where each LLM call processes the
 - Generate marketing copy → translate to another language
 - Write document outline → check criteria → write document from outline
 
-#### 2. Routing
+##### 2. Routing
 Classify an input and **direct it to a specialized followup task**. Enables separation of concerns and specialized prompts.
 
 **Use when:** Distinct categories exist that are better handled separately, and classification can be done accurately.
@@ -256,7 +266,7 @@ Classify an input and **direct it to a specialized followup task**. Enables sepa
 - Customer service: general questions vs. refund requests vs. technical support → different processes/prompts/tools
 - Easy questions → small cheap model (Haiku); hard questions → capable model (Sonnet)
 
-#### 3. Parallelization
+##### 3. Parallelization
 LLMs work **simultaneously** on a task, outputs aggregated programmatically. Two variations:
 - **Sectioning** — break task into independent subtasks run in parallel
 - **Voting** — run same task multiple times for diverse outputs
@@ -267,7 +277,7 @@ LLMs work **simultaneously** on a task, outputs aggregated programmatically. Two
 - *Sectioning:* One model handles user queries while another screens for inappropriate content. Automating evals where each call evaluates a different aspect.
 - *Voting:* Multiple prompts review code for vulnerabilities. Multiple prompts evaluate content appropriateness with vote thresholds.
 
-#### 4. Orchestrator-Workers
+##### 4. Orchestrator-Workers
 A **central LLM dynamically breaks down tasks**, delegates to worker LLMs, and synthesizes results. Unlike parallelization, subtasks aren't pre-defined — the orchestrator determines them based on input.
 
 **Use when:** Can't predict subtasks needed (e.g., in coding, the number and nature of file changes depends on the task).
@@ -276,7 +286,7 @@ A **central LLM dynamically breaks down tasks**, delegates to worker LLMs, and s
 - Coding products making complex changes to multiple files
 - Search tasks gathering/analyzing information from multiple sources
 
-#### 5. Evaluator-Optimizer
+##### 5. Evaluator-Optimizer
 One LLM generates a response, another **provides evaluation and feedback in a loop**.
 
 **Use when:** Clear evaluation criteria exist, iterative refinement provides measurable value, and LLM responses demonstrably improve when feedback is articulated.
@@ -285,7 +295,7 @@ One LLM generates a response, another **provides evaluation and feedback in a lo
 - Literary translation with nuance refinement
 - Complex search requiring multiple rounds of searching/analysis
 
-### Autonomous Agents
+#### Autonomous Agents
 
 Full agents emerge as LLMs mature in: understanding complex inputs, reasoning/planning, reliable tool use, and error recovery.
 
@@ -300,7 +310,7 @@ Agent execution pattern:
 
 **Trade-offs:** Higher costs, potential for compounding errors. Requires extensive testing in sandboxed environments with appropriate guardrails.
 
-### Agent-Computer Interface (ACI)
+#### Agent-Computer Interface (ACI)
 
 Anthropic emphasizes investing as much effort in the **agent-computer interface** as in human-computer interfaces:
 
@@ -312,7 +322,7 @@ Anthropic emphasizes investing as much effort in the **agent-computer interface*
 
 Example: For SWE-bench, they found the model made mistakes with relative filepaths. Changing to always require absolute filepaths fixed it completely. They spent **more time optimizing tools than the overall prompt**.
 
-### Core Principles
+#### Core Principles
 
 Anthropic's three principles for implementing agents:
 1. Maintain **simplicity** in your agent's design
@@ -323,7 +333,7 @@ Anthropic's three principles for implementing agents:
 
 ---
 
-## LangGraph Terminology
+## 2. Core Concepts
 
 ### Graph
 
@@ -367,9 +377,9 @@ LangGraph provides a built-in reducer called `add_messages` that:
 - Concatenates message lists together
 - Packages raw dicts into `HumanMessage`/`AIMessage` objects automatically
 
----
+**Key distinction:** State fields *with* a reducer accumulate across nodes (concatenation). Fields *without* a reducer are simply **overwritten** by the latest node's output.
 
-## The Annotated Type Hint
+### The Annotated Type Hint
 
 Python's `Annotated` type hint lets you attach metadata to a type. Python itself completely ignores the metadata, but other frameworks (like LangGraph) can read it.
 
@@ -408,9 +418,7 @@ class State(BaseModel):
 
 Here, `add_messages` is the reducer function. LangGraph reads this annotation and knows: "whenever a node returns a new state with `messages`, use `add_messages` to combine it with the existing messages."
 
----
-
-## Immutable State
+### Immutable State
 
 State in LangGraph is **immutable** — once created, you never change its contents. This is fundamental to LangGraph's ability to:
 
@@ -435,53 +443,26 @@ def my_counting_node(old_state: State) -> State:
     return old_state      # ❌ Returning the same mutated object
 ```
 
----
+### Super Steps
 
-## The 5 Steps to Build a Graph
+A **super step** is a single complete invocation of the graph — one call to `graph.invoke()`.
 
-When you run a LangGraph application, there are **two phases**:
+This is a crucial concept that's easy to misunderstand:
 
-1. **Graph building phase** — you define the structure (steps 1–5 below). This is a "meta phase" where you describe what you want to do.
-2. **Execution phase** — you invoke the compiled graph and it actually runs.
+- Every user interaction = a fresh `graph.invoke()` call = one super step
+- The graph describes what happens within ONE super step (agents calling tools, multiple nodes running)
+- The **reducer** handles state within a single super step (combining outputs from parallel nodes)
+- The reducer does **NOT** handle state between super steps — that's what checkpointing does
 
-This is unusual compared to normal programming. You don't normally have a phase where you're describing what you want to do and then a separate phase where it does it. But that's how LangGraph works — both phases happen at runtime when you start your application.
-
-| Step | Action | What happens |
-|------|--------|--------------|
-| 1 | Define the State class | Describe what information will be maintained (includes reducer specification) |
-| 2 | Start the Graph Builder | Initialize `StateGraph` with your State **class** (not an instance) |
-| 3 | Create Node(s) | Write Python functions, register them with the builder via `add_node()` |
-| 4 | Create Edge(s) | Define connections between nodes (and START/END) via `add_edge()` |
-| 5 | Compile the Graph | Call `.compile()` — graph is now ready to execute |
-
-After compilation, you **invoke** the graph with an initial state to run it. Steps 3 and 4 may be repeated many times to lay out complex workflows — you're "laying out the story" of what you want your agent system to do before it's actually live.
-
----
-
-## Example 1: Silly Random Node (No LLM)
-
-This example demonstrates that **LangGraph nodes are just Python functions** — no LLM required.
-
-### Step 1: Define the State
-
-```python
-from typing import Annotated
-from pydantic import BaseModel
-from langgraph.graph.message import add_messages
-
-# State class defines the shape of data flowing through the graph
-# Using Pydantic BaseModel for validation (TypedDict also works)
-class State(BaseModel):
-    # messages: a list of conversation messages
-    # add_messages: the reducer that concatenates new messages onto existing ones
-    messages: Annotated[list, add_messages]
+```
+Define Graph → [Super Step 1: user asks] → [Super Step 2: user follows up] → [Super Step 3: ...]
+                     ↑                            ↑                              ↑
+              graph.invoke()               graph.invoke()                  graph.invoke()
 ```
 
-- Uses Pydantic `BaseModel` (could also use `TypedDict` — both are common)
-- Single field `messages` — a list with the `add_messages` reducer
-- State objects can be any Python object, but Pydantic and TypedDict are most common
+Each super step runs the entire graph from START to END (or until a conditional edge routes to END).
 
-#### Pydantic BaseModel vs TypedDict — When to Use Which
+### Pydantic BaseModel vs TypedDict
 
 Both are valid choices for defining State in LangGraph. The difference matters:
 
@@ -514,23 +495,99 @@ class State(TypedDict):
 
 In practice: **TypedDict is more common** in LangGraph examples because it's lighter and nodes often return plain dicts (`{"messages": [...]}`) which map naturally. Pydantic is better when your state grows complex and you want validation guarantees.
 
-### Step 2: Start the Graph Builder
+---
 
-```python
-from langgraph.graph import StateGraph
+## 3. Building Blocks: The 5 Steps
 
-# Pass the State CLASS (not an instance) — tells the builder what shape state takes
-# This begins the graph building process; nothing executes yet
-graph_builder = StateGraph(State)
+When you run a LangGraph application, there are **two phases**:
+
+1. **Graph building phase** — you define the structure (steps 1–5 below). This is a "meta phase" where you describe what you want to do.
+2. **Execution phase** — you invoke the compiled graph and it actually runs.
+
+This is unusual compared to normal programming. You don't normally have a phase where you're describing what you want to do and then a separate phase where it does it. But that's how LangGraph works — both phases happen at runtime when you start your application.
+
+| Step | Action | What happens |
+|------|--------|--------------|
+| 1 | Define the State class | Describe what information will be maintained (includes reducer specification) |
+| 2 | Start the Graph Builder | Initialize `StateGraph` with your State **class** (not an instance) |
+| 3 | Create Node(s) | Write Python functions, register them with the builder via `add_node()` |
+| 4 | Create Edge(s) | Define connections between nodes (and START/END) via `add_edge()` |
+| 5 | Compile the Graph | Call `.compile()` — graph is now ready to execute |
+
+After compilation, you **invoke** the graph with an initial state to run it. Steps 3 and 4 may be repeated many times to lay out complex workflows — you're "laying out the story" of what you want your agent system to do before it's actually live.
+
+---
+
+## 4. Environment Configuration
+
+### LangSmith Setup & Tracing
+
+LangSmith provides observability into every graph invocation. Setup:
+
+1. Create a free account at https://langsmith.com
+2. Generate an API key via "Setup Tracing"
+3. Add to your `.env`:
+
+```bash
+LANGCHAIN_TRACING_V2=true
+LANGCHAIN_ENDPOINT=https://api.smith.langchain.com
+LANGCHAIN_PROJECT=langgraph-course
+LANGSMITH_API_KEY=lsv2_pt_your_key_here
 ```
 
-Note: we pass the **class** `State`, not an instance. We're not creating a state with messages — we're telling the builder what *shape* state will take. This begins the graph building process (nothing is running yet).
+### OpenRouter & Serper
 
-### Step 3: Create a Node
+You'll also need `OPENROUTER_API_KEY`, `OPENROUTER_BASE_URL`, and `SERPER_API_KEY` in the same `.env`:
+
+```bash
+OPENROUTER_API_KEY=sk-or-v1-your_key_here
+OPENROUTER_BASE_URL=https://openrouter.ai/api/v1
+SERPER_API_KEY=your_serper_key_here
+```
+
+### Loading Configuration
 
 ```python
+from dotenv import load_dotenv
+load_dotenv(override=True)  # override=True ensures .env values take precedence over existing env vars
+```
+
+> **Note:** CrewAI did this automatically; with LangGraph you call it explicitly to load your `.env` file.
+
+**What you see in LangSmith:**
+- Every `invoke()` call logged with input/output
+- Latency per call
+- Cost per call (fractions of a cent for gpt-4o-mini)
+- Token counts
+- Full trace of node execution (chatbot → tools_condition → tools → chatbot → ...)
+- Errors highlighted in red
+
+---
+
+## 5. Progressive Examples
+
+### Example A: Simple Graph (No LLM)
+
+This example demonstrates that **LangGraph nodes are just Python functions** — no LLM required. Follows the 5 steps defined above.
+
+```python
+from typing import Annotated
+from pydantic import BaseModel
+from langgraph.graph import StateGraph, START, END
+from langgraph.graph.message import add_messages
 import random
 
+# Step 1: Define the State
+class State(BaseModel):
+    # messages: a list of conversation messages
+    # add_messages: the reducer that concatenates new messages onto existing ones
+    messages: Annotated[list, add_messages]
+
+# Step 2: Start the Graph Builder
+# Pass the State CLASS (not an instance) — tells the builder what shape state takes
+graph_builder = StateGraph(State)
+
+# Step 3: Create a Node
 nouns = ["Cabbages", "Unicorns", "Toasters", "Penguins", "Bananas",
          "Zombies", "Rainbows", "Eels", "Pickles", "Muffins"]
 adjectives = ["outrageous", "smelly", "pedantic", "existential", "moody",
@@ -548,32 +605,13 @@ def our_first_node(old_state: State) -> State:
 
 # Register the function as a named node in the graph builder
 graph_builder.add_node("first_node", our_first_node)
-```
 
-Key observations:
-- The node is a plain Python function — nothing special
-- It receives `old_state` but doesn't even use it (grayed out in the IDE) — proving nodes are just functions that don't need to touch the LLM or even the prior state
-- It creates a **new** `State` object (immutability respected)
-- The message uses standard OpenAI dict format — the `add_messages` reducer will package it into an `AIMessage` object
-- `add_node("first_node", our_first_node)` registers it with a name in the graph builder
-
-### Step 4: Create Edges
-
-```python
-from langgraph.graph import START, END
-
+# Step 4: Create Edges
 # START and END are special LangGraph constants representing workflow boundaries
 graph_builder.add_edge(START, "first_node")   # When graph starts → run first_node
 graph_builder.add_edge("first_node", END)     # After first_node → workflow ends
-```
 
-- `START` and `END` are special constants imported from LangGraph — they signify the beginning and end of the workflow
-- This defines: START → first_node → END (linear flow)
-
-### Step 5: Compile the Graph
-
-```python
-# Step 5: Compile — finalizes the graph, making it ready to invoke
+# Step 5: Compile the Graph
 graph = graph_builder.compile()
 ```
 
@@ -587,7 +625,7 @@ display(Image(graph.get_graph().draw_mermaid_png()))
 
 This produces: `__start__` → `first_node` → `__end__`
 
-### Running It
+#### Running It
 
 ```python
 import gradio as gr
@@ -627,11 +665,9 @@ gr.ChatInterface(chat, type="messages").launch()
 
 ---
 
-## Example 2: Real LLM Chatbot
+### Example B: LLM Chatbot (No Memory)
 
 Now we add an actual LLM call. Same 5 steps, but the node calls an LLM instead of picking random words.
-
-### Full Implementation
 
 ```python
 import os
@@ -679,7 +715,7 @@ graph_builder.add_edge("chatbot", END)    # chatbot → End
 graph = graph_builder.compile()
 ```
 
-### The LLM Integration
+#### The LLM Integration
 
 ```python
 # ChatOpenAI: LangChain's wrapper for OpenAI-compatible APIs
@@ -696,39 +732,14 @@ llm = ChatOpenAI(
 - LangChain is optional but convenient, and most community examples use it
 - Here we route through OpenRouter (any OpenAI-compatible endpoint works)
 
-### The Node Function
-
-```python
-def chatbot_node(old_state: State) -> State:
-    # invoke() sends messages to the LLM and returns an AIMessage object
-    response = llm.invoke(old_state.messages)
-    # Wrap response in a list — the add_messages reducer expects a list
-    # The reducer will append this to the existing messages in state
-    new_state = State(messages=[response])
-    return new_state
-```
-
-- `llm.invoke(old_state.messages)` — passes the full message history to the LLM (again, `invoke` is the LangChain/LangGraph word)
-- `response` is an `AIMessage` object (LangChain's wrapper)
-- We wrap it in a list `[response]` because our state's `messages` field expects a list
-- The `add_messages` reducer will concatenate this with existing messages
-
-### Key Differences from Example 1
-
-| Aspect | Example 1 (Random) | Example 2 (LLM) |
-|--------|-------------------|------------------|
-| Node logic | Random string generation | `llm.invoke(old_state.messages)` |
-| Uses old_state? | No (ignored) | Yes — passes `old_state.messages` to LLM |
-| Response type | Dict `{"role": "assistant", "content": ...}` | LangChain `AIMessage` object directly |
-
-### Running with Gradio
+#### Running with Gradio
 
 ```python
 import gradio as gr
 
 def chat(user_input: str, history):
     # Create a fresh state with ONLY the current user message
-    # (no history carried over — this is the limitation we'll fix in Part 2)
+    # (no history carried over — this is the limitation we'll fix with checkpointing)
     initial_state = State(messages=[{"role": "user", "content": user_input}])
     # Invoke the compiled graph — executes START → chatbot → END
     result = graph.invoke(initial_state)
@@ -741,7 +752,7 @@ def chat(user_input: str, history):
 gr.ChatInterface(chat, type="messages").launch()
 ```
 
-### Current Limitation: No Memory
+#### Current Limitation: No Memory
 
 This implementation has **no conversation history**. Each invocation creates a fresh state with only the current user message:
 
@@ -752,118 +763,11 @@ User: What's my name?
 Bot: I'm sorry, but I don't have access to your personal data.
 ```
 
-The graph is invoked fresh each time — there's nothing persisting the conversation across calls. The state only contains the single message from the current turn. This is addressed in Part 2 (next session) along with:
-- Conversation memory/history
-- Tool integration
-- Conditional edges
+The graph is invoked fresh each time — there's nothing persisting the conversation across calls. The state only contains the single message from the current turn. This is addressed in Example D (Checkpointing & Memory).
 
 ---
 
-## Key Takeaways
-
-1. **LangGraph ≠ LangChain** — LangGraph is an independent framework for orchestrating agent workflows as graphs. LangChain is optional glue code for LLM calls.
-
-2. **Everything is a Python function** — Nodes are functions. Conditional edges are functions. There's no magic.
-
-3. **State is immutable** — Always create new state objects; never mutate the old one. This enables time-travel, checkpointing, and safe parallelism.
-
-4. **Reducers handle concurrency** — They define how to merge state updates when multiple nodes run in parallel. `add_messages` simply concatenates lists and packages dicts into message objects.
-
-5. **Two-phase execution** — First you *build* the graph (define state, nodes, edges, compile). Then you *invoke* it. Both phases happen at runtime.
-
-6. **`graph.invoke(state)`** — The single method that executes your entire workflow.
-
-7. **Nodes don't require LLMs** — Any Python function works. LLMs are just one possible thing a node can do.
-
-8. **Understand the abstractions** — Per Anthropic's advice, know what's happening under the hood. LangGraph adds structure but also adds layers between you and the LLM. Start simple, add complexity only when it demonstrably improves outcomes.
-
-9. **Anthropic's design patterns** (prompt chaining, routing, parallelization, orchestrator-workers, evaluator-optimizer) map naturally onto LangGraph's node/edge architecture — but can also be implemented in a few lines of code without any framework.
-
-10. **`load_dotenv()`** — CrewAI did this automatically; with LangGraph you call it explicitly to load your `.env` file.
-
----
-
-# LangGraph — Part 2: Tools, Conditional Edges & Checkpointing
-
-## Table of Contents (Part 2)
-- [Super Steps](#super-steps)
-- [LangSmith Setup & Tracing](#langsmith-setup--tracing)
-- [Tools in LangGraph](#tools-in-langgraph)
-  - [Off-the-Shelf Tool: Google Search](#off-the-shelf-tool-google-search)
-  - [Custom Tool: Push Notification](#custom-tool-push-notification)
-  - [The LangChain Tool Wrapper](#the-langchain-tool-wrapper)
-- [Building a Graph with Tools](#building-a-graph-with-tools)
-  - [bind_tools: Providing Tools to the LLM](#bind_tools-providing-tools-to-the-llm)
-  - [ToolNode: Handling Tool Execution](#toolnode-handling-tool-execution)
-  - [Conditional Edges: tools_condition](#conditional-edges-tools_condition)
-  - [The Tool Loop: tools → chatbot](#the-tool-loop-tools--chatbot)
-- [Checkpointing & Memory](#checkpointing--memory)
-  - [Why State Alone Isn't Enough](#why-state-alone-isnt-enough)
-  - [MemorySaver: In-Memory Checkpointing](#memorysaver-in-memory-checkpointing)
-  - [Thread IDs & Config](#thread-ids--config)
-  - [get_state & get_state_history](#get_state--get_state_history)
-  - [Time Travel](#time-travel)
-  - [SQLite Persistence](#sqlite-persistence)
-
----
-
-## Super Steps
-
-A **super step** is a single complete invocation of the graph — one call to `graph.invoke()`.
-
-This is a crucial concept that's easy to misunderstand:
-
-- Every user interaction = a fresh `graph.invoke()` call = one super step
-- The graph describes what happens within ONE super step (agents calling tools, multiple nodes running)
-- The **reducer** handles state within a single super step (combining outputs from parallel nodes)
-- The reducer does **NOT** handle state between super steps — that's what checkpointing does
-
-```
-Define Graph → [Super Step 1: user asks] → [Super Step 2: user follows up] → [Super Step 3: ...]
-                     ↑                            ↑                              ↑
-              graph.invoke()               graph.invoke()                  graph.invoke()
-```
-
-Each super step runs the entire graph from START to END (or until a conditional edge routes to END).
-
----
-
-## LangSmith Setup & Tracing
-
-LangSmith provides observability into every graph invocation. Setup:
-
-1. Create a free account at https://langsmith.com
-2. Generate an API key via "Setup Tracing"
-3. Add to your `.env`:
-
-```bash
-LANGCHAIN_TRACING_V2=true
-LANGCHAIN_ENDPOINT=https://api.smith.langchain.com
-LANGCHAIN_PROJECT=langgraph-course
-LANGSMITH_API_KEY=lsv2_pt_your_key_here
-```
-
-You'll also need `OPENROUTER_API_KEY`, `OPENROUTER_BASE_URL`, and `SERPER_API_KEY` in the same `.env`:
-
-```bash
-OPENROUTER_API_KEY=sk-or-v1-your_key_here
-OPENROUTER_BASE_URL=https://openrouter.ai/api/v1
-SERPER_API_KEY=your_serper_key_here
-```
-
-4. Run `load_dotenv(override=True)` — tracing activates automatically
-
-**What you see in LangSmith:**
-- Every `invoke()` call logged with input/output
-- Latency per call
-- Cost per call (fractions of a cent for gpt-4o-mini)
-- Token counts
-- Full trace of node execution (chatbot → tools_condition → tools → chatbot → ...)
-- Errors highlighted in red
-
----
-
-## Tools in LangGraph
+### Example C: Tools + Conditional Edges
 
 When implementing tools, you always need to handle **two concerns**:
 
@@ -872,42 +776,26 @@ When implementing tools, you always need to handle **two concerns**:
 
 LangGraph/LangChain abstracts both of these.
 
-### Off-the-Shelf Tool: Google Search
+#### Defining Tools
 
 ```python
 from langchain_community.utilities import GoogleSerperAPIWrapper
-
-# Create the search wrapper (uses SERPER_API_KEY from .env)
-serper = GoogleSerperAPIWrapper()
-serper.run("What is the capital of France?")  # Returns: "Paris"
-```
-
-This is a LangChain community utility — a convenient wrapper around the Serper API (same one used in prior sections). Free tier includes several thousand calls.
-
-### Custom Tool: Push Notification
-
-```python
-def push(text: str):
-    """Send a push notification to the user"""
-    # In production: requests.post(pushover_url, data={...})
-    print(f'push notification has been sent with text : {text}')
-```
-
-### The LangChain Tool Wrapper
-
-LangChain's `Tool` class wraps any function into a tool object that handles all the JSON schema generation:
-
-```python
 from langchain.agents import Tool
 
-# Off-the-shelf tool: wraps serper.run
+# Off-the-shelf tool: Google Search (uses SERPER_API_KEY from .env)
+serper = GoogleSerperAPIWrapper()
+
 tool_search = Tool(
     name="search",                    # Name the LLM will see
     func=serper.run,                  # Function to execute
     description="Useful for when you need more information from an online search"
 )
 
-# Custom tool: wraps our push function
+# Custom tool: Push Notification
+def push(text: str):
+    """Send a push notification to the user"""
+    print(f'push notification has been sent with text : {text}')
+
 tool_push = Tool(
     name="send_push_notification",
     func=push,
@@ -922,11 +810,7 @@ tool_push.invoke("Hello, me")  # prints notification
 tools = [tool_search, tool_push]
 ```
 
----
-
-## Building a Graph with Tools
-
-### Full Implementation
+#### Full Graph with Tools
 
 ```python
 from typing import Annotated, TypedDict
@@ -975,7 +859,7 @@ graph_builder.add_edge(START, "chatbot")
 graph = graph_builder.compile()
 ```
 
-### bind_tools: Providing Tools to the LLM
+#### bind_tools: Providing Tools to the LLM
 
 ```python
 # This is LangChain magic — creates a wrapped LLM that automatically:
@@ -985,9 +869,9 @@ graph = graph_builder.compile()
 llm_with_tools = llm.bind_tools(tools)
 ```
 
-The flip side: it hides the implementation, making debugging harder. But it eliminates all the manual JSON construction from [Agentic AI Systems Foundation](../01-Agentic%20AI%20Systems%20Foundation/).
+The flip side: it hides the implementation, making debugging harder. But it eliminates all the manual JSON construction.
 
-### ToolNode: Handling Tool Execution
+#### ToolNode: Handling Tool Execution
 
 ```python
 # ToolNode is a pre-built LangGraph node that:
@@ -998,9 +882,7 @@ The flip side: it hides the implementation, making debugging harder. But it elim
 graph_builder.add_node("tools", ToolNode(tools=tools))
 ```
 
-This replaces the manual `handle_tool_call` logic from [Agentic AI Systems Foundation](../01-Agentic%20AI%20Systems%20Foundation/).
-
-### Conditional Edges: tools_condition
+#### Conditional Edges: tools_condition
 
 ```python
 # tools_condition is a pre-built function that checks:
@@ -1010,13 +892,13 @@ This replaces the manual `handle_tool_call` logic from [Agentic AI Systems Found
 graph_builder.add_conditional_edges("chatbot", tools_condition, "tools")
 ```
 
-This is the **if statement** — the same `if finish_reason == "tool_calls"` from [Agentic AI Systems Foundation](../01-Agentic%20AI%20Systems%20Foundation/), but abstracted into a reusable conditional edge.
+This is the **if statement** — the same `if finish_reason == "tool_calls"` logic, but abstracted into a reusable conditional edge.
 
 **Why no explicit `add_edge("chatbot", END)`?** When you use `add_conditional_edges`, LangGraph automatically adds an END route for any unresolved condition. Since `tools_condition` only routes to `"tools"` when there's a tool call, the implicit "else" case routes to END. LangGraph handles this — you don't need to declare it manually.
 
-> **Part 1 vs Part 2:** In Part 1 (simple edges only), you *must* explicitly add `add_edge("chatbot", END)` because there's no conditional logic — LangGraph has no way to infer when the graph should terminate. The automatic END fallback only exists with `add_conditional_edges`.
+> **Simple edges vs conditional edges:** With simple edges only (Examples A & B), you *must* explicitly add `add_edge("chatbot", END)` because there's no conditional logic — LangGraph has no way to infer when the graph should terminate. The automatic END fallback only exists with `add_conditional_edges`.
 
-### The Tool Loop: tools → chatbot
+#### The Tool Loop: tools → chatbot
 
 ```python
 # After tools execute, results must go BACK to the chatbot
@@ -1036,9 +918,9 @@ The resulting graph visualization:
 
 ---
 
-## Checkpointing & Memory
+### Example D: Checkpointing & Memory
 
-### Why State Alone Isn't Enough
+#### Why State Alone Isn't Enough
 
 Despite having reducers and state management, the graph has **no memory between super steps**:
 
@@ -1049,7 +931,7 @@ User: What's my name? → Bot: I don't have access to your personal information.
 
 Each `graph.invoke()` is a fresh invocation. The reducer manages state *within* one super step (parallel nodes, tool loops), but not *across* super steps. That's what **checkpointing** solves.
 
-### MemorySaver: In-Memory Checkpointing
+#### MemorySaver: In-Memory Checkpointing
 
 ```python
 from langgraph.checkpoint.memory import MemorySaver
@@ -1063,7 +945,7 @@ graph = graph_builder.compile(checkpointer=memory)
 
 That's it. One argument to `.compile()`. The graph now automatically saves state after each super step and restores it on the next invocation.
 
-### Thread IDs & Config
+#### Thread IDs & Config
 
 ```python
 # Config identifies WHICH conversation thread to checkpoint
@@ -1081,7 +963,7 @@ def chat(user_input: str, history):
 - Different thread IDs = separate memory slots
 - Same thread ID = continuous conversation with full history
 
-### get_state & get_state_history
+#### get_state & get_state_history
 
 ```python
 # Get the current state snapshot for a thread
@@ -1093,7 +975,7 @@ list(graph.get_state_history(config))
 # Returns: list of StateSnapshot objects — one per step, going back in time
 ```
 
-### Time Travel
+#### Time Travel
 
 You can rewind to any prior checkpoint and replay from there:
 
@@ -1114,7 +996,7 @@ This enables:
 - **Reproducibility** — replay exact state at any point in time
 - **Branching** — fork a conversation from a prior state
 
-### SQLite Persistence
+#### SQLite Persistence
 
 Switch from in-memory to persistent storage by changing one import:
 
@@ -1133,50 +1015,11 @@ Now memory survives kernel restarts. The SQLite database files appear in your wo
 
 ---
 
-## Part 2 Key Takeaways
+### Example E: Multi-Agent Evaluator-Optimizer
 
-1. **Super steps** — each `graph.invoke()` is one super step. Reducers work within a super step; checkpointing works across them.
+This example implements the **Evaluator-Optimizer** pattern (from Anthropic's taxonomy) with a cyclic graph. It introduces async execution, Playwright browser automation, structured outputs, and multi-agent coordination.
 
-2. **Two concerns with tools** — (1) providing tool schemas to the LLM (`bind_tools`), (2) executing tool calls (`ToolNode`). LangGraph abstracts both.
-
-3. **Conditional edges** — `tools_condition` is the "if statement" that routes to tools only when the LLM requests them. This creates the agent loop.
-
-4. **The tool loop** — `tools → chatbot` edge creates a cycle. The chatbot keeps running until it stops requesting tools.
-
-5. **Checkpointing is elegant** — one argument to `.compile()` adds full conversation memory, time travel, and state history.
-
-6. **Thread IDs** — separate conversations via config. Same code, different memory slots.
-
-7. **Persistence is trivial** — swap `MemorySaver` for `SqliteSaver` to survive restarts. One line change.
-
-8. **LangSmith** — automatic tracing shows the full execution chain, costs, latency, and errors. Essential for debugging tool loops.
-
----
-
-# LangGraph — Part 3: Playwright, Async, Structured Outputs & Multi-Agent Flow (Project Sidekick)
-
-## Table of Contents (Part 3)
-- [Async LangGraph](#async-langgraph)
-- [Playwright Browser Automation](#playwright-browser-automation)
-  - [What is Playwright?](#what-is-playwright)
-  - [LangChain Playwright Toolkit](#langchain-playwright-toolkit)
-  - [Single Agent with Browser Tools (Lab 3)](#single-agent-with-browser-tools-lab-3)
-- [Structured Outputs in LangGraph](#structured-outputs-in-langgraph)
-- [Multi-Agent Workflow: The Sidekick (Lab 4)](#multi-agent-workflow-the-sidekick-lab-4)
-  - [Architecture Overview](#architecture-overview)
-  - [Rich State for Multi-Agent Flows](#rich-state-for-multi-agent-flows)
-  - [The Worker Node](#the-worker-node)
-  - [The Worker Router](#the-worker-router)
-  - [The Evaluator Node](#the-evaluator-node)
-  - [The Evaluation Router](#the-evaluation-router)
-  - [Graph Assembly](#graph-assembly)
-  - [The Sidekick UI](#the-sidekick-ui)
-- [LangSmith Trace: Full Flow Example](#langsmith-trace-full-flow-example)
-- [Part 3 Key Takeaways](#part-3-key-takeaways)
-
----
-
-## Async LangGraph
+#### Async LangGraph
 
 LangGraph supports asynchronous execution — essential when working with I/O-heavy tools like browser automation.
 
@@ -1200,11 +1043,7 @@ nest_asyncio.apply()  # Patches asyncio to allow event loop within event loop
 # Not needed when running as a standalone Python module
 ```
 
----
-
-## Playwright Browser Automation
-
-### What is Playwright?
+#### Playwright Browser Automation
 
 [Playwright](https://playwright.dev/) is Microsoft's browser automation framework — the next generation of Selenium. It:
 
@@ -1218,8 +1057,6 @@ Installation:
 playwright install  # Windows/macOS
 # Linux: see Playwright docs for additional dependencies
 ```
-
-### LangChain Playwright Toolkit
 
 LangChain provides a pre-built toolkit that wraps Playwright into LangGraph-compatible tools:
 
@@ -1260,39 +1097,7 @@ text = await extract_text_tool.arun({})
 print(text)  # Full rendered page text
 ```
 
-### Single Agent with Browser Tools (Lab 3)
-
-Combine Playwright tools + push notification into a single agent graph:
-
-```python
-# Add custom tool to the Playwright toolkit
-tools.append(tool_push)
-
-# Create LLM and bind ALL tools (Playwright + custom)
-llm = ChatOpenAI(model="gpt-4o-mini", base_url=os.environ["OPENROUTER_BASE_URL"], api_key=os.environ["OPENROUTER_API_KEY"])
-llm_with_tools = llm.bind_tools(tools)
-
-# Standard chatbot node — same pattern as Part 2
-def chatbot(state: State):
-    return {"messages": [llm_with_tools.invoke(state["messages"])]}
-
-# Build graph (identical structure to Part 2)
-graph_builder = StateGraph(State)
-graph_builder.add_node("chatbot", chatbot)
-graph_builder.add_node("tools", ToolNode(tools=tools))
-graph_builder.add_conditional_edges("chatbot", tools_condition, "tools")
-graph_builder.add_edge("tools", "chatbot")
-graph_builder.add_edge(START, "chatbot")
-
-memory = MemorySaver()
-graph = graph_builder.compile(checkpointer=memory)
-```
-
-With this, the agent can autonomously browse the web, extract information, and send push notifications — all driven by the LLM deciding which tools to call.
-
----
-
-## Structured Outputs in LangGraph
+#### Structured Outputs
 
 Structured outputs force the LLM to respond with JSON conforming to a Pydantic schema. In LangGraph, this is used to get **typed, parseable decisions** from evaluator agents.
 
@@ -1326,13 +1131,7 @@ result.user_input_needed     # bool
 
 > **Note:** Not all models support structured outputs. If yours doesn't, fall back to prompting for JSON manually and parsing the response yourself.
 
----
-
-## Multi-Agent Workflow: The Sidekick (Lab 4)
-
-### Architecture Overview
-
-The Sidekick implements the **Evaluator-Optimizer** pattern (from Anthropic's taxonomy) with a cyclic graph:
+#### Architecture Overview
 
 ```
 START → worker → (tools_condition) → tools → worker → ... → evaluator → (route) → worker OR END
@@ -1344,9 +1143,9 @@ Two agents:
 
 This creates a true agent loop: the worker keeps trying until the evaluator is satisfied or determines user input is needed.
 
-### Rich State for Multi-Agent Flows
+#### Rich State for Multi-Agent Flows
 
-Unlike Parts 1–2 (just `messages`), the Sidekick has a **multi-field state**:
+Unlike earlier examples (just `messages`), the multi-agent Sidekick has a **multi-field state**:
 
 ```python
 class State(TypedDict):
@@ -1357,11 +1156,9 @@ class State(TypedDict):
     user_input_needed: bool                        # Does the user need to intervene? (set by evaluator)
 ```
 
-**Key insight:** Only `messages` has a reducer (`add_messages`). All other fields are **overwritten** when a node returns them. This means:
-- `messages` accumulates across nodes (concatenation)
-- `success_criteria_met`, `feedback_on_work`, etc. are simple values that get replaced by the latest node's output
+Only `messages` has a reducer (`add_messages`). All other fields are **overwritten** when a node returns them — as described in the Core Concepts section.
 
-### The Worker Node
+#### The Worker Node
 
 ```python
 def worker(state: State) -> Dict[str, Any]:
@@ -1399,7 +1196,7 @@ With this feedback, please continue the assignment, ensuring that you meet the s
     return {"messages": [response]}
 ```
 
-### The Worker Router
+#### The Worker Router
 
 Routes the worker's output: if it requested a tool call → tools node; otherwise → evaluator.
 
@@ -1413,7 +1210,7 @@ def worker_router(state: State) -> str:
         return "evaluator"   # No tool call → send to evaluator for assessment
 ```
 
-### The Evaluator Node
+#### The Evaluator Node
 
 ```python
 def format_conversation(messages: List[Any]) -> str:
@@ -1467,7 +1264,7 @@ Also, decide if more user input is required."""
     }
 ```
 
-### The Evaluation Router
+#### The Evaluation Router
 
 ```python
 def route_based_on_evaluation(state: State) -> str:
@@ -1480,7 +1277,7 @@ def route_based_on_evaluation(state: State) -> str:
         return "worker"  # Send back for another attempt with feedback
 ```
 
-### Graph Assembly
+#### Graph Assembly
 
 ```python
 graph_builder = StateGraph(State)
@@ -1507,7 +1304,7 @@ The resulting graph: `START → worker ⇄ tools` (loop) `→ evaluator → work
 
 ![Sidekick multi-agent graph](./pic/graph_sidekick.png)
 
-### The Sidekick UI
+#### The Sidekick UI
 
 ```python
 def make_thread_id() -> str:
@@ -1538,9 +1335,7 @@ async def process_message(message, success_criteria, history, thread):
 
 Each Gradio session gets a unique `thread_id` via `uuid.uuid4()` — this means multiple users can use the Sidekick simultaneously with separate conversation memories.
 
----
-
-## LangSmith Trace: Full Flow Example
+#### LangSmith Trace: Full Flow Example
 
 A real trace from the Sidekick asking "what is the current exchange rate usd/eur" with success criteria "accurate answer":
 
@@ -1571,44 +1366,11 @@ A real trace from the Sidekick asking "what is the current exchange rate usd/eur
 
 ---
 
-## Part 3 Key Takeaways
+### Example F: Production Sidekick
 
-1. **Playwright + LangGraph = browser-driving agent** — arm your agent with real browser tools (navigate, click, extract text) to interact with any website.
+The production Sidekick splits the notebook prototype into three clean Python modules. This follows the pattern: **prototype in notebook → productionize in modules**.
 
-2. **Async is essential for I/O tools** — use `await graph.ainvoke()` and `await tool.arun()` when tools involve network/browser operations.
-
-3. **Structured outputs** — `with_structured_output(PydanticModel)` forces the LLM to return typed, parseable decisions. Critical for routing logic.
-
-4. **Multi-agent = multiple nodes with conditional routing** — the worker/evaluator pattern creates a self-improving loop where the evaluator sends work back until criteria are met.
-
-5. **Rich state** — state can hold any fields you need (not just messages). Only fields with reducers accumulate; others get overwritten.
-
-6. **Prompt engineering is R&D** — the worker and evaluator prompts were refined through experimentation. There are no fixed rules — iterate based on what works for your model and task.
-
-7. **UUID thread IDs** — generate unique thread IDs per session to support multiple concurrent users with separate memories.
-
-8. **This is Anthropic's Evaluator-Optimizer pattern** — but with cycles (true agent autonomy), not just a fixed loop count.
-
----
-
-# LangGraph — Part 4: Production Sidekick
-
-## Table of Contents (Part 4)
-- [Overview: Three-Module Architecture](#overview-three-module-architecture)
-- [Module 1: sidekick_tools.py — Tool Arsenal](#module-1-sidekick_toolspy--tool-arsenal)
-- [Module 2: sidekick.py — The Sidekick Class](#module-2-sidekickpy--the-sidekick-class)
-- [Module 3: app.py — Gradio Application](#module-3-apppy--gradio-application)
-- [Running the Application](#running-the-application)
-- [Prompt Engineering Lessons](#prompt-engineering-lessons)
-- [Safety & Caution](#safety--caution)
-- [Extending the Sidekick](#extending-the-sidekick)
-- [Part 4 Key Takeaways](#part-4-key-takeaways)
-
----
-
-## Overview: Three-Module Architecture
-
-The production Sidekick splits the notebook prototype into three clean Python modules:
+#### Three-Module Architecture
 
 | Module | Responsibility |
 |--------|---------------|
@@ -1616,13 +1378,7 @@ The production Sidekick splits the notebook prototype into three clean Python mo
 | `sidekick.py` | Contains the `Sidekick` class: worker node, evaluator node, graph building, super step execution |
 | `app.py` | Gradio UI with session state, lifecycle callbacks (setup/cleanup) |
 
-This follows the pattern: **prototype in notebook → productionize in modules**.
-
----
-
-## Module 1: sidekick_tools.py — Tool Arsenal
-
-This module assembles all tools the agent can use:
+#### Module 1: sidekick_tools.py — Tool Arsenal
 
 ```python
 from playwright.async_api import async_playwright
@@ -1680,11 +1436,7 @@ async def other_tools():
 | Wikipedia | LangChain `WikipediaQueryRun` | N/A |
 | Python REPL | `PythonREPLTool` | ⚠️ **NO** — runs arbitrary Python |
 
----
-
-## Module 2: sidekick.py — The Sidekick Class
-
-The `Sidekick` class encapsulates the entire agent system:
+#### Module 2: sidekick.py — The Sidekick Class
 
 ```python
 class Sidekick:
@@ -1711,35 +1463,7 @@ class Sidekick:
 
 **Why separate `__init__` and `setup()`?** Python's `__init__` cannot be async. Since Playwright and graph building require `await`, we split initialization into sync (`__init__`) and async (`setup()`).
 
-### Key Prompt Engineering in the Worker
-
-```python
-system_message = f"""You are a helpful assistant that can use tools to complete tasks.
-You have a tool to run python code, but note that you would need to include
-a print() statement if you wanted to receive output.
-The current date and time is {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
-...
-"""
-```
-
-Two critical prompt additions discovered through experimentation:
-1. **Date/time injection** — instead of making a tool for this, inject it directly (it's always needed, so a tool is wasteful)
-2. **`print()` hint** — GPT-4o-mini didn't understand that the Python REPL tool requires `print()` to return output; without this hint, it got empty responses and looped
-
-### Key Prompt Engineering in the Evaluator
-
-```python
-user_message += """The Assistant has access to a tool to write files.
-If the Assistant says they have written a file, then you can assume they have done so.
-Overall you should give the Assistant the benefit of the doubt if they say they've done something.
-But you should reject if you feel that more work should go into this."""
-```
-
-The evaluator was too harsh — it didn't trust the worker's claims about file writes. These "trust hints" fixed the issue.
-
----
-
-## Module 3: app.py — Gradio Application
+#### Module 3: app.py — Gradio Application
 
 ```python
 import gradio as gr
@@ -1791,9 +1515,7 @@ ui.launch(inbrowser=True)
 - `ui.load(setup, ...)` — initializes Sidekick when a user opens the page
 - Each user gets their own `Sidekick` instance (own browser, own memory, own thread ID)
 
----
-
-## Running the Application
+#### Running the Application
 
 ```bash
 cd 4_langgraph
@@ -1802,7 +1524,7 @@ gradio app.py
 
 ---
 
-## Prompt Engineering Lessons
+## 6. Prompt Engineering Lessons
 
 | Problem | Solution |
 |---------|----------|
@@ -1812,9 +1534,31 @@ gradio app.py
 | Evaluator loops on same feedback | Add: "if repeating same mistakes, request user input" |
 | Agent asks "can I help with anything else?" | Explicitly say "don't ask a question; simply reply with the answer" |
 
+Key prompt additions discovered through experimentation:
+
+```python
+system_message = f"""You are a helpful assistant that can use tools to complete tasks.
+You have a tool to run python code, but note that you would need to include
+a print() statement if you wanted to receive output.
+The current date and time is {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
+...
+"""
+```
+
+For the evaluator, trust hints were needed:
+
+```python
+user_message += """The Assistant has access to a tool to write files.
+If the Assistant says they have written a file, then you can assume they have done so.
+Overall you should give the Assistant the benefit of the doubt if they say they've done something.
+But you should reject if you feel that more work should go into this."""
+```
+
+**Prompt engineering is iterative R&D** — every hint in the prompts was discovered through trial and error. There are no fixed rules.
+
 ---
 
-## Safety & Caution
+## 7. Safety & Caution
 
 ⚠️ **The Sidekick is an experimental app. Use at your own risk.**
 
@@ -1827,40 +1571,7 @@ To disable risky tools, simply remove them from the `other_tools()` return list 
 
 ---
 
-## Extending the Sidekick
-
-The Sidekick is a **canvas**, not a finished product. Ideas for extension:
-
-- **Add clarifying questions** — have the worker ask 3 questions before starting work
-- **Add a planning agent** — separate planner node that breaks tasks into steps before the worker executes
-- **Switch to SQLite memory** — replace `MemorySaver()` with `SqliteSaver` for persistent conversations
-- **Add more tools** — Google Calendar, SQL databases, PDF generation (markdown → PDF converter), email
-- **Use Gradio auth** — use username as thread ID for persistent per-user memory
-- **Explore LangChain's tool ecosystem** — hundreds of pre-built tools in `langchain_community`
-
----
-
-## Part 4 Key Takeaways
-
-1. **Notebook → Module** — prototype in Jupyter, productionize in Python files. AI engineering is experimental by nature.
-
-2. **Three clean modules** — tools (what the agent can do), sidekick (how the agent thinks), app (how users interact).
-
-3. **Async lifecycle** — `__init__` for sync setup, `setup()` for async initialization. Required by Playwright and graph building.
-
-4. **Prompt engineering is iterative R&D** — every hint in the prompts was discovered through trial and error. There are no fixed rules.
-
-5. **Tools are the agent's superpowers** — the more tools you add, the more capable the agent becomes. LangChain's ecosystem provides hundreds.
-
-6. **Per-session state** — `gr.State` with `delete_callback` ensures each user gets isolated resources and proper cleanup.
-
-7. **Safety is your responsibility** — the Python REPL is powerful but dangerous. Monitor, experiment, and remove tools you're not comfortable with.
-
-8. **This is your own Manus** — a browser-driving, file-writing, code-running agent that you control. The potential is enormous.
-
----
-
-## Extension Ideas by Role
+## 8. Extension Ideas
 
 ### For LLM Engineers
 
