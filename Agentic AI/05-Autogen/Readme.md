@@ -731,6 +731,7 @@ agent = AssistantAgent(
 # (alternative to on_messages() for simpler single-task invocations)
 result = await agent.run(task="Review https://www.srajdev.com/p/understanding-agentic-ai-architecture and summarize what you learn. Reply in Markdown.")
 display(Markdown(result.messages[-1].content))
+
 ```
 
 **What's happening:**
