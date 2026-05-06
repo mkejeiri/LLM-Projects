@@ -30,6 +30,31 @@
   - [Using LangChain Tools from AutoGen](#using-langchain-tools-from-autogen)
   - [Teams: Multi-Agent Collaboration](#teams-multi-agent-collaboration)
   - [MCP Tools Preview](#mcp-tools-preview)
+- [Lab 3: AutoGen Core — The Agent Interaction Runtime](#lab-3-autogen-core--the-agent-interaction-runtime)
+  - [AutoGen Core vs Semantic Kernel](#autogen-core-vs-semantic-kernel)
+  - [Core Philosophy: Decoupling Logic from Messaging](#core-philosophy-decoupling-logic-from-messaging)
+  - [Runtimes: Standalone vs Distributed](#runtimes-standalone-vs-distributed)
+  - [Defining Messages](#defining-messages)
+  - [Defining Agents: RoutedAgent and Message Handlers](#defining-agents-routedagent-and-message-handlers)
+  - [Creating a Runtime and Registering Agents](#creating-a-runtime-and-registering-agents)
+  - [Sending Messages](#sending-messages)
+  - [Delegating to an LLM: Core + AgentChat Integration](#delegating-to-an-llm-core--agentchat-integration)
+  - [Multi-Agent Interaction: Rock Paper Scissors](#multi-agent-interaction-rock-paper-scissors)
+- [Lab 4: AutoGen Core — Distributed Runtime](#lab-4-autogen-core--distributed-runtime)
+  - [Distributed Architecture: Host + Workers](#distributed-architecture-host--workers)
+  - [Setting Up the gRPC Host](#setting-up-the-grpc-host)
+  - [Defining Agents (Unchanged from Standalone)](#defining-agents-unchanged-from-standalone)
+  - [Mode 1: All-in-One Worker](#mode-1-all-in-one-worker)
+  - [Mode 2: Multiple Workers (Truly Distributed)](#mode-2-multiple-workers-truly-distributed)
+  - [The Key Insight: Transparent Distribution](#the-key-insight-transparent-distribution)
+- [Lab 5: The Agent Creator — Self-Replicating Agents](#lab-5-the-agent-creator--self-replicating-agents)
+  - [The Big Idea](#the-big-idea)
+  - [Architecture Overview](#architecture-overview)
+  - [messages.py — Shared Message Type](#messagespy--shared-message-type)
+  - [agent.py — The Prototype Template](#agentpy--the-prototype-template)
+  - [creator.py — The Agent That Creates Agents](#creatorpy--the-agent-that-creates-agents)
+  - [world.py — The Orchestrator](#worldpy--the-orchestrator)
+  - [Running It](#running-it)
 - [Key Takeaways](#key-takeaways)
 - [References](#references)
 
@@ -112,6 +137,19 @@ A **low-code/no-code** visual interface for constructing agent workflows. Micros
 ### Magentic-One
 
 A **pre-built command-line application** — an out-of-the-box agent system you run from the terminal. Think of it as a canned agent framework similar to building your own "sidekick" agent, but provided ready-made.
+
+#### Magentic-One vs Kiro CLI
+
+| | Magentic-One | Kiro CLI |
+|---|---|---|
+| **Purpose** | General-purpose multi-agent system for complex tasks (web browsing, file handling, coding) | AI-assisted development agent for coding, system ops, and AWS workflows |
+| **Architecture** | Orchestrator + specialist agents (WebSurfer, FileSurfer, Coder, Terminal) | Single agent with tool access (filesystem, shell, AWS, web search) |
+| **When to use** | Research tasks requiring multiple autonomous agents collaborating (e.g., multi-step web research, data gathering across sources) | Day-to-day development: writing code, debugging, managing infrastructure, creating PRs |
+| **Customization** | Limited — pre-built agent team, you configure but don't code agents | Extensible via specs, hooks, and context; works within your existing project |
+| **Runtime** | Standalone Python process, requires AutoGen ecosystem | Terminal CLI, integrates with your shell and dev environment directly |
+| **Interaction** | Task-based — give it a goal, it orchestrates autonomously | Conversational — interactive back-and-forth in your terminal |
+
+**TL;DR:** Use Magentic-One when you need autonomous multi-agent collaboration on complex research/data tasks. Use Kiro CLI when you need an AI pair-programmer in your terminal for hands-on development work.
 
 **Our focus:** AutoGen Core + AgentChat (primarily AgentChat).
 
@@ -750,6 +788,858 @@ display(Markdown(result.messages[-1].content))
 
 ---
 
+## Lab 3: AutoGen Core — The Agent Interaction Runtime
+
+AutoGen Core is the **infrastructure layer** beneath AgentChat. It is a model-agnostic, platform-agnostic **agent interaction framework** — it doesn't care how you implement your agents, only how they communicate. You can use AgentChat agents, raw OpenAI calls, LangChain, or anything else as the underlying logic.
+
+From a positioning standpoint, AutoGen Core is comparable to **LangGraph** — both orchestrate interactions between agents. The key difference in emphasis:
+
+| | AutoGen Core | LangGraph |
+|---|---|---|
+| **Primary concern** | Messaging & agent lifecycle across diverse, potentially distributed agents | Robustness, repeatability, and state replay |
+| **Agent diversity** | Agents can be written in different languages, use different frameworks | Agents are typically LangGraph nodes |
+| **Architecture** | Event-driven message dispatch | Directed graph with state machine semantics |
+
+### AutoGen Core vs Semantic Kernel
+
+A common question: where does **Microsoft Semantic Kernel** fit?
+
+Semantic Kernel is **not** an agentic framework in the same sense. It's more analogous to **LangChain** — heavyweight glue code for:
+- Wrapping LLM calls
+- Memory management
+- Tool calling (called "plugins" in SK)
+- Prompt templating
+- Structured outputs
+
+There is overlap (SK has some agent functionality), but Microsoft positions them differently:
+- **AutoGen**: Exclusively focused on building autonomous multi-agent applications
+- **Semantic Kernel**: Stitching together LLM calls for business applications
+
+### Core Philosophy: Decoupling Logic from Messaging
+
+The fundamental principle of AutoGen Core:
+
+> **The framework handles agent creation, lifecycle, and message delivery. You handle the agent logic.**
+
+AutoGen Core manages:
+- **Creating agents** — the full lifecycle from instantiation to teardown
+- **Routing messages** — dispatching messages to the correct agent and handler based on type signatures
+- **Discovery** — agents can find and message other agents by their ID
+
+What it does **not** manage:
+- What your agent actually does (call an LLM, query a database, return a hardcoded string — it doesn't care)
+
+### Runtimes: Standalone vs Distributed
+
+The **Runtime** is the execution environment where agents live and interact. Two types:
+
+1. **`SingleThreadedAgentRuntime`** (Standalone) — runs locally on your machine, single-threaded. Used for development and simple deployments.
+2. **Distributed Runtime** — allows remote agents across machines to interact. Covered in Lab 4.
+
+### Defining Messages
+
+In AutoGen Core, you define your own message types. This is analogous to defining **state** in LangGraph, but the emphasis is on communication rather than state management:
+
+```python
+import os
+from dataclasses import dataclass
+from autogen_core import AgentId, MessageContext, RoutedAgent, message_handler
+from autogen_core import SingleThreadedAgentRuntime
+from autogen_agentchat.agents import AssistantAgent
+from autogen_agentchat.messages import TextMessage
+from autogen_ext.models.openai import OpenAIChatCompletionClient
+from dotenv import load_dotenv
+
+load_dotenv(dotenv_path="../.env", override=True)
+```
+
+```python
+# A simple dataclass to transport information between agents.
+# Analogous to defining 'state' in LangGraph — but here it's a message.
+# You can make this more sophisticated with multiple fields
+# (e.g., images, metadata, structured data).
+
+@dataclass
+class Message:
+    content: str
+```
+
+The message is a plain Python dataclass. You can have multiple message types — AutoGen Core uses the **type signature** of handler methods to route different message types to different handlers automatically.
+
+### Defining Agents: RoutedAgent and Message Handlers
+
+Every AutoGen Core agent is a subclass of `RoutedAgent`. Each agent has a unique **Agent ID** with two components:
+
+- `agent.id.type` — the kind of agent (e.g., `"simple_agent"`, `"LLMAgent"`)
+- `agent.id.key` — a unique instance identifier (e.g., `"default"`)
+
+The combination `(type, key)` is globally unique within a runtime. In a distributed runtime, agents from anywhere in the world can be addressed by their type + key.
+
+```python
+# SimpleAgent: a RoutedAgent subclass — the basic unit in AutoGen Core.
+# It has an agent ID (type + key) for unique identification in the runtime.
+# @message_handler decorator registers this method to receive Message objects.
+# AutoGen Core routes messages to the correct handler based on the message type signature.
+
+class SimpleAgent(RoutedAgent):
+    def __init__(self) -> None:
+        super().__init__("Simple")
+
+    @message_handler
+    async def on_my_message(self, message: Message, ctx: MessageContext) -> Message:
+        return Message(content=f"This is {self.id.type}-{self.id.key}. You said '{message.content}' and I disagree.")
+```
+
+**Key points:**
+- The `@message_handler` decorator is what makes a method eligible to receive messages
+- The method name is irrelevant — what matters is the **type annotation** of the `message` parameter
+- You can have **multiple handlers** with different message types (e.g., `TextMessage`, `ImageMessage`) and AutoGen Core will dispatch to the correct one automatically
+- All handlers are **async coroutines** — the framework is async-first
+- Handlers receive a `MessageContext` providing cancellation tokens and metadata
+
+### Creating a Runtime and Registering Agents
+
+```python
+# Create a standalone runtime — the 'world' where agents live and interact.
+# register() tells the runtime about this agent TYPE and provides a factory to instantiate it.
+# This doesn't create an agent yet — just makes the type known.
+runtime = SingleThreadedAgentRuntime()
+await SimpleAgent.register(runtime, "simple_agent", lambda: SimpleAgent())
+```
+
+**Important distinction:** `register()` does **not** instantiate an agent. It registers a **type** with a **factory function**. The runtime will instantiate agents on-demand when messages are sent to them. This is lazy instantiation — agents are created only when needed.
+
+### Sending Messages
+
+```python
+runtime.start()  # Start the runtime — it now processes messages in the background
+
+# AgentId(type, key) uniquely identifies an agent in the runtime.
+# send_message dispatches our Message to the agent — runtime handles routing.
+agent_id = AgentId("simple_agent", "default")
+response = await runtime.send_message(Message("Well hi there!"), agent_id)
+print(">>>", response.content)
+```
+
+**Output:**
+```
+>>> This is simple_agent-default. You said 'Well hi there!' and I disagree.
+```
+
+```python
+# Always stop and close the runtime before creating a new one
+await runtime.stop()
+await runtime.close()
+```
+
+The runtime must be explicitly stopped and closed before creating another one — this is a lifecycle requirement enforced by AutoGen Core.
+
+### Delegating to an LLM: Core + AgentChat Integration
+
+The real power emerges when you combine AutoGen Core (messaging infrastructure) with AgentChat (LLM abstraction). The Core agent becomes a **management wrapper** that delegates actual LLM work to an AgentChat `AssistantAgent`:
+
+```python
+# MyLLMAgent: a RoutedAgent that delegates to an AgentChat AssistantAgent.
+# The AutoGen Core agent is just a 'management wrapper' — the real LLM work
+# is done by the _delegate (AssistantAgent from AgentChat).
+# This shows how Core and AgentChat can work together.
+
+class MyLLMAgent(RoutedAgent):
+    def __init__(self) -> None:
+        super().__init__("LLMAgent")
+        model_client = OpenAIChatCompletionClient(
+            model="openai/gpt-4o-mini",
+            api_key=os.environ["OPENROUTER_API_KEY"],
+            base_url=os.environ["OPENROUTER_BASE_URL"],
+            model_info={"vision": True, "function_calling": True, "json_output": True, "structured_output": True, "family": "unknown"}
+        )
+        self._delegate = AssistantAgent("LLMAgent", model_client=model_client)
+
+    @message_handler
+    async def handle_my_message_type(self, message: Message, ctx: MessageContext) -> Message:
+        print(f"{self.id.type} received message: {message.content}")
+        # Convert our Core Message into an AgentChat TextMessage for the delegate
+        text_message = TextMessage(content=message.content, source="user")
+        response = await self._delegate.on_messages([text_message], ctx.cancellation_token)
+        reply = response.chat_message.content
+        print(f"{self.id.type} responded: {reply}")
+        return Message(content=reply)
+```
+
+**What's happening:**
+- The Core agent receives a `Message` (our custom dataclass)
+- It converts it to an AgentChat `TextMessage` (the format AgentChat expects)
+- It delegates to the `AssistantAgent` which calls the LLM
+- It wraps the response back into our `Message` format
+
+This pattern cleanly separates concerns: Core handles routing/lifecycle, AgentChat handles LLM interaction.
+
+**Demonstrating agent-to-agent interaction:**
+
+```python
+runtime = SingleThreadedAgentRuntime()
+await SimpleAgent.register(runtime, "simple_agent", lambda: SimpleAgent())
+await MyLLMAgent.register(runtime, "LLMAgent", lambda: MyLLMAgent())
+
+# Demonstrate agent-to-agent interaction via the runtime:
+# 1. Send 'Hi there!' to LLMAgent (GPT-4o-mini responds)
+# 2. Forward LLM's response to SimpleAgent (which disagrees)
+# 3. Forward disagreement back to LLMAgent (to see how it handles it)
+runtime.start()
+response = await runtime.send_message(Message("Hi there!"), AgentId("LLMAgent", "default"))
+print(">>>", response.content)
+response = await runtime.send_message(Message(response.content), AgentId("simple_agent", "default"))
+print(">>>", response.content)
+response = await runtime.send_message(Message(response.content), AgentId("LLMAgent", "default"))
+```
+
+**Output:**
+```
+LLMAgent received message: Hi there!
+LLMAgent responded: Hello! How can I assist you today?
+>>> Hello! How can I assist you today?
+>>> This is simple_agent-default. You said 'Hello! How can I assist you today?' and I disagree.
+LLMAgent received message: This is simple_agent-default. You said 'Hello! How can I assist you today?' and I disagree.
+LLMAgent responded: I appreciate your feedback! How would you prefer I greet you or assist you?
+```
+
+The LLM gracefully handles the disagreement — demonstrating how heterogeneous agents (one hardcoded, one LLM-backed) can interact through the same runtime.
+
+### Multi-Agent Interaction: Rock Paper Scissors
+
+A more complete example showing three agents collaborating: two players (backed by different LLMs) and a judge/orchestrator.
+
+```python
+from autogen_ext.models.ollama import OllamaChatCompletionClient
+
+# Player1Agent: delegates to GPT-4o-mini via OpenRouter
+# Player2Agent: delegates to local Ollama llama3.2
+# Both are RoutedAgents — AutoGen Core doesn't care what LLM backs them.
+
+class Player1Agent(RoutedAgent):
+    def __init__(self, name: str) -> None:
+        super().__init__(name)
+        model_client = OpenAIChatCompletionClient(
+            model="openai/gpt-4o-mini",
+            api_key=os.environ["OPENROUTER_API_KEY"],
+            base_url=os.environ["OPENROUTER_BASE_URL"],
+            model_info={"vision": True, "function_calling": True, "json_output": True, "structured_output": True, "family": "unknown"},
+            temperature=1.0  # High temperature for randomness in choices
+        )
+        self._delegate = AssistantAgent(name, model_client=model_client)
+
+    @message_handler
+    async def handle_my_message_type(self, message: Message, ctx: MessageContext) -> Message:
+        text_message = TextMessage(content=message.content, source="user")
+        response = await self._delegate.on_messages([text_message], ctx.cancellation_token)
+        return Message(content=response.chat_message.content)
+
+class Player2Agent(RoutedAgent):
+    def __init__(self, name: str) -> None:
+        super().__init__(name)
+        # Local model via Ollama — demonstrates heterogeneous LLM backends
+        model_client = OllamaChatCompletionClient(model="llama3.2", temperature=1.0)
+        self._delegate = AssistantAgent(name, model_client=model_client)
+
+    @message_handler
+    async def handle_my_message_type(self, message: Message, ctx: MessageContext) -> Message:
+        text_message = TextMessage(content=message.content, source="user")
+        response = await self._delegate.on_messages([text_message], ctx.cancellation_token)
+        return Message(content=response.chat_message.content)
+```
+
+**The orchestrator agent** — discovers other agents by ID and coordinates the game:
+
+```python
+JUDGE = "You are judging a game of rock, paper, scissors. The players have made these choices:\n"
+
+# RockPaperScissorsAgent: an orchestrator agent that:
+# 1. Sends instructions to player1 and player2 via self.send_message()
+# 2. Collects their choices
+# 3. Asks its own LLM delegate to judge the winner
+# This demonstrates agents discovering and messaging other agents by ID.
+
+class RockPaperScissorsAgent(RoutedAgent):
+    def __init__(self, name: str) -> None:
+        super().__init__(name)
+        model_client = OpenAIChatCompletionClient(
+            model="openai/gpt-4o-mini",
+            api_key=os.environ["OPENROUTER_API_KEY"],
+            base_url=os.environ["OPENROUTER_BASE_URL"],
+            model_info={"vision": True, "function_calling": True, "json_output": True, "structured_output": True, "family": "unknown"},
+            temperature=1.0
+        )
+        self._delegate = AssistantAgent(name, model_client=model_client)
+
+    @message_handler
+    async def handle_my_message_type(self, message: Message, ctx: MessageContext) -> Message:
+        instruction = "You are playing rock, paper, scissors. Respond only with the one word, one of the following: rock, paper, or scissors."
+        message = Message(content=instruction)
+        # Discover and message other agents by their AgentId
+        inner_1 = AgentId("player1", "default")
+        inner_2 = AgentId("player2", "default")
+        response1 = await self.send_message(message, inner_1)
+        response2 = await self.send_message(message, inner_2)
+        result = f"Player 1: {response1.content}\nPlayer 2: {response2.content}\n"
+        # Use own delegate to judge the outcome
+        judgement = f"{JUDGE}{result}Who wins?"
+        message = TextMessage(content=judgement, source="user")
+        response = await self._delegate.on_messages([message], ctx.cancellation_token)
+        return Message(content=result + response.chat_message.content)
+```
+
+**Running the game:**
+
+```python
+# Register all 3 agent types with the runtime and start it.
+# Each register() provides a factory lambda for instantiation.
+runtime = SingleThreadedAgentRuntime()
+await Player1Agent.register(runtime, "player1", lambda: Player1Agent("player1"))
+await Player2Agent.register(runtime, "player2", lambda: Player2Agent("player2"))
+await RockPaperScissorsAgent.register(runtime, "rock_paper_scissors", lambda: RockPaperScissorsAgent("rock_paper_scissors"))
+runtime.start()
+
+# Trigger the game: send 'go' to the RockPaperScissors orchestrator.
+# It will internally message player1 & player2, collect choices, and judge.
+agent_id = AgentId("rock_paper_scissors", "default")
+message = Message(content="go")
+response = await runtime.send_message(message, agent_id)
+print(response.content)
+```
+
+**Output:**
+```
+Player 1: rock
+Player 2: paper
+Player 2 wins because paper covers rock.
+```
+
+**What this demonstrates:**
+1. **Agent discovery** — the orchestrator finds players by `AgentId("player1", "default")`
+2. **Heterogeneous backends** — Player 1 uses GPT-4o-mini (cloud), Player 2 uses llama3.2 (local Ollama)
+3. **Intra-agent messaging** — `self.send_message()` dispatches messages to other agents within the same handler
+4. **Orchestration pattern** — one agent coordinates multiple others, collects results, and synthesizes a final answer
+
+**Commercial applications of this pattern:**
+- Financial trading: agents arguing about whether an equity is a good investment
+- Code review: multiple agents reviewing different aspects of code
+- Research: agents gathering information from different sources and synthesizing
+- Any scenario requiring diverse, autonomous agents interacting in a managed environment
+
+> ⚠️ **Note on pub/sub**: Beyond direct messaging (`send_message`), AutoGen Core also supports a **publish/subscribe** pattern where agents subscribe to topics and receive broadcast messages. This enables fan-out communication patterns without knowing all recipients upfront.
+
+---
+
+## Lab 4: AutoGen Core — Distributed Runtime
+
+Moving from the standalone `SingleThreadedAgentRuntime` to the **distributed runtime**. This is the second type of runtime in AutoGen Core — it handles messaging **across process boundaries**. Agents can be in different processes, on different machines, written in different programming languages, and AutoGen Core handles all the plumbing.
+
+> ⚠️ **Experimental**: Microsoft states that the distributed runtime is still experimental and APIs are liable to change. This is more of an architecture preview and future direction than a production-ready system.
+
+### Distributed Architecture: Host + Workers
+
+The distributed runtime consists of two components:
+
+| Component | Role |
+|---|---|
+| **Host Service** (`GrpcWorkerAgentRuntimeHost`) | Central coordinator. Listens on a gRPC port, routes messages between workers, manages sessions for direct messages. |
+| **Worker Runtime** (`GrpcWorkerAgentRuntime`) | Holds and executes agents. Connects to the host, advertises its registered agents, handles actual code execution. |
+
+**gRPC** (Google Remote Procedure Calls) is a cross-language protocol for calling functions across process boundaries — like REST but direct function-to-function. It's used extensively in distributed systems where interactive messaging needs to cross process boundaries.
+
+The flow:
+1. Host starts listening on a port
+2. Workers connect to the host and register their agent types
+3. When a message is sent to an agent, the host routes it to the correct worker
+4. The worker executes the agent's handler and returns the response
+
+### Setting Up the gRPC Host
+
+```python
+import os
+from dataclasses import dataclass
+from autogen_core import AgentId, MessageContext, RoutedAgent, message_handler
+from autogen_agentchat.agents import AssistantAgent
+from autogen_agentchat.messages import TextMessage
+from autogen_ext.models.openai import OpenAIChatCompletionClient
+from autogen_ext.tools.langchain import LangChainToolAdapter
+from langchain_community.utilities import GoogleSerperAPIWrapper
+from langchain.agents import Tool
+from dotenv import load_dotenv
+
+load_dotenv(dotenv_path="../.env", override=True)
+
+# Toggle: if True, all agents run in a single worker process.
+# If False, each agent gets its own worker — simulating truly distributed agents.
+ALL_IN_ONE_WORKER = False
+```
+
+```python
+# Same Message dataclass as Lab 3 — the transport object between agents.
+# In a distributed runtime, this gets serialized over gRPC between workers/processes.
+# The message definition is identical whether standalone or distributed — that's the point.
+@dataclass
+class Message:
+    content: str
+```
+
+```python
+from autogen_ext.runtimes.grpc import GrpcWorkerAgentRuntimeHost
+
+# The Host is the central coordinator for the distributed runtime.
+# It listens on a gRPC port and routes messages between workers.
+# gRPC = cross-language remote procedure calls (like REST but direct function-to-function).
+# Workers connect to this host and advertise which agents they have.
+# The host handles session management and message delivery across process boundaries.
+host = GrpcWorkerAgentRuntimeHost(address="localhost:50051")
+host.start()
+```
+
+**Setting up a web search tool** (reusing the LangChain adapter pattern from Lab 2):
+
+```python
+# Wrap a LangChain tool (Google Serper web search) for use in AutoGen agents.
+serper = GoogleSerperAPIWrapper()
+langchain_serper = Tool(name="internet_search", func=serper.run, description="Useful for when you need to search the internet")
+autogen_serper = LangChainToolAdapter(langchain_serper)
+```
+
+**Task instructions** — a business decision scenario: should we use AutoGen for a new project?
+
+```python
+# Player1 researches pros, Player2 researches cons, Judge synthesizes a decision.
+instruction1 = "To help with a decision on whether to use AutoGen in a new AI Agent project, \
+please research and briefly respond with reasons in favor of choosing AutoGen; the pros of AutoGen."
+
+instruction2 = "To help with a decision on whether to use AutoGen in a new AI Agent project, \
+please research and briefly respond with reasons against choosing AutoGen; the cons of Autogen."
+
+judge = "You must make a decision on whether to use AutoGen for a project. \
+Your research team has come up with the following reasons for and against. \
+Based purely on the research from your team, please respond with your decision and brief rationale."
+```
+
+### Defining Agents (Unchanged from Standalone)
+
+This is the critical point — **the agent code is identical to the standalone version**. The agents don't know they're distributed. `self.send_message()` works the same whether messages route locally or across gRPC process boundaries.
+
+```python
+# KEY INSIGHT: This agent code is IDENTICAL to the standalone version (Lab 3).
+# The agents don't know they're distributed — self.send_message() works the same
+# whether messages route locally or across gRPC process boundaries.
+# That transparency is the power of AutoGen Core.
+
+class Player1Agent(RoutedAgent):
+    def __init__(self, name: str) -> None:
+        super().__init__(name)
+        model_client = OpenAIChatCompletionClient(
+            model="openai/gpt-4o-mini",
+            api_key=os.environ["OPENROUTER_API_KEY"],
+            base_url=os.environ["OPENROUTER_BASE_URL"],
+            model_info={"vision": True, "function_calling": True, "json_output": True, "structured_output": True, "family": "unknown"}
+        )
+        # Armed with web search tool + reflect_on_tool_use for natural language responses
+        self._delegate = AssistantAgent(name, model_client=model_client, tools=[autogen_serper], reflect_on_tool_use=True)
+
+    @message_handler
+    async def handle_my_message_type(self, message: Message, ctx: MessageContext) -> Message:
+        text_message = TextMessage(content=message.content, source="user")
+        response = await self._delegate.on_messages([text_message], ctx.cancellation_token)
+        return Message(content=response.chat_message.content)
+
+class Player2Agent(RoutedAgent):
+    def __init__(self, name: str) -> None:
+        super().__init__(name)
+        model_client = OpenAIChatCompletionClient(
+            model="openai/gpt-4o-mini",
+            api_key=os.environ["OPENROUTER_API_KEY"],
+            base_url=os.environ["OPENROUTER_BASE_URL"],
+            model_info={"vision": True, "function_calling": True, "json_output": True, "structured_output": True, "family": "unknown"}
+        )
+        self._delegate = AssistantAgent(name, model_client=model_client, tools=[autogen_serper], reflect_on_tool_use=True)
+
+    @message_handler
+    async def handle_my_message_type(self, message: Message, ctx: MessageContext) -> Message:
+        text_message = TextMessage(content=message.content, source="user")
+        response = await self._delegate.on_messages([text_message], ctx.cancellation_token)
+        return Message(content=response.chat_message.content)
+
+class Judge(RoutedAgent):
+    def __init__(self, name: str) -> None:
+        super().__init__(name)
+        model_client = OpenAIChatCompletionClient(
+            model="openai/gpt-4o-mini",
+            api_key=os.environ["OPENROUTER_API_KEY"],
+            base_url=os.environ["OPENROUTER_BASE_URL"],
+            model_info={"vision": True, "function_calling": True, "json_output": True, "structured_output": True, "family": "unknown"}
+        )
+        self._delegate = AssistantAgent(name, model_client=model_client)
+
+    @message_handler
+    async def handle_my_message_type(self, message: Message, ctx: MessageContext) -> Message:
+        # Dispatch research tasks to player1 (pros) and player2 (cons)
+        message1 = Message(content=instruction1)
+        message2 = Message(content=instruction2)
+        inner_1 = AgentId("player1", "default")
+        inner_2 = AgentId("player2", "default")
+        response1 = await self.send_message(message1, inner_1)
+        response2 = await self.send_message(message2, inner_2)
+        # Compile research and ask own LLM to make a final decision
+        result = f"## Pros of AutoGen:\n{response1.content}\n\n## Cons of AutoGen:\n{response2.content}\n\n"
+        judgement = f"{judge}\n{result}Respond with your decision and brief explanation"
+        message = TextMessage(content=judgement, source="user")
+        response = await self._delegate.on_messages([message], ctx.cancellation_token)
+        return Message(content=result + "\n\n## Decision:\n\n" + response.chat_message.content)
+```
+
+**Note:** Player1 and Player2 are structurally identical — you could use a single class. They're kept separate to allow swapping in different models (e.g., DeepSeek for one, GPT-4o for the other) for comparative research.
+
+### Mode 1: All-in-One Worker
+
+All three agents in a single worker process. Messages still route through the gRPC host, but everything is in one process:
+
+```python
+from autogen_ext.runtimes.grpc import GrpcWorkerAgentRuntime
+
+if ALL_IN_ONE_WORKER:
+    # Single worker holds all agents — messages still route through the host
+    worker = GrpcWorkerAgentRuntime(host_address="localhost:50051")
+    await worker.start()
+
+    await Player1Agent.register(worker, "player1", lambda: Player1Agent("player1"))
+    await Player2Agent.register(worker, "player2", lambda: Player2Agent("player2"))
+    await Judge.register(worker, "judge", lambda: Judge("judge"))
+
+    agent_id = AgentId("judge", "default")
+```
+
+### Mode 2: Multiple Workers (Truly Distributed)
+
+Each agent in its own worker runtime — simulating agents on separate machines:
+
+```python
+else:
+    # Each agent in its own worker — the host routes messages between them via gRPC
+    worker1 = GrpcWorkerAgentRuntime(host_address="localhost:50051")
+    await worker1.start()
+    await Player1Agent.register(worker1, "player1", lambda: Player1Agent("player1"))
+
+    worker2 = GrpcWorkerAgentRuntime(host_address="localhost:50051")
+    await worker2.start()
+    await Player2Agent.register(worker2, "player2", lambda: Player2Agent("player2"))
+
+    worker = GrpcWorkerAgentRuntime(host_address="localhost:50051")
+    await worker.start()
+    await Judge.register(worker, "judge", lambda: Judge("judge"))
+    agent_id = AgentId("judge", "default")
+```
+
+**Running the distributed system:**
+
+```python
+# Trigger the Judge — it will dispatch to player1 & player2 across workers via gRPC,
+# collect their research, and synthesize a final decision.
+response = await worker.send_message(Message(content="Go!"), agent_id)
+display(Markdown(response.content))
+```
+
+**Sample output:**
+```markdown
+## Pros of AutoGen:
+- Multi-agent collaboration framework
+- Scalability and flexibility
+- Memory and coherent context management
+- Ease of development
+- Versatile applications
+
+## Cons of AutoGen:
+- Limited customization in some areas
+- Performance variability
+- Cost considerations
+- Still experimental (distributed features)
+
+## Decision:
+Recommend using AutoGen. The pros significantly outweigh the cons...
+```
+
+**Cleanup:**
+
+```python
+# Stop all workers — in distributed mode, each worker must be stopped individually
+await worker.stop()
+if not ALL_IN_ONE_WORKER:
+    await worker1.stop()
+    await worker2.stop()
+
+# Stop the gRPC host — shuts down the message routing infrastructure
+await host.stop()
+```
+
+### The Key Insight: Transparent Distribution
+
+The most powerful aspect of AutoGen Core's distributed runtime:
+
+1. **Zero code changes** — the agent class definitions are identical between standalone and distributed. You don't add any distributed-specific code.
+2. **`self.send_message()` is transparent** — whether it calls a local function or makes a gRPC call across the network, the API is the same.
+3. **Configuration, not code** — the only difference is *how you register agents* (with a `SingleThreadedAgentRuntime` vs a `GrpcWorkerAgentRuntime`).
+4. **Cross-language potential** — because gRPC is language-agnostic, agents could theoretically be written in JavaScript, Go, Rust, etc. and still participate in the same runtime.
+
+**Microsoft's vision:** A future where potentially millions of agents interact globally. AutoGen Core provides the "playpen" — a world where agents can live and interact regardless of where they are or what language they're written in. You just wrap your agent logic in a `RoutedAgent`, define your `Message` types, and the framework handles everything else.
+
+---
+
+## Lab 5: The Agent Creator — Self-Replicating Agents
+
+The week 5 capstone project: an agent that **writes, imports, registers, and messages new agents** at runtime. This demonstrates AutoGen Core's dynamic agent lifecycle management in a distributed runtime.
+
+> ⚠️ **Safety warning**: This project generates and executes Python code without guardrails. Run at your own risk. The generated agents could theoretically change model requirements or include unexpected logic. Cost is minimal (~$0.02 for 20 agents with GPT-4o-mini).
+
+### The Big Idea
+
+| Aspect | Details |
+|---|---|
+| **Educational** | Demonstrates dynamic agent creation, `importlib`, async Python, inter-agent messaging |
+| **Entertaining** | Self-replicating agents that collaborate on business ideas |
+| **Commercial angle** | The spawned agents brainstorm Agentic AI business ideas and refine each other's work |
+| **Risks** | Unreliable (LLM-generated code may fail), unsafe (executes generated code natively) |
+
+**Flow:**
+1. `world.py` launches a distributed runtime and registers a **Creator** agent
+2. Creator receives requests like `"agent1.py"`, `"agent2.py"`, etc.
+3. For each: Creator reads `agent.py` as a template → asks LLM to generate a variation → saves it → dynamically imports it → registers it with the runtime → sends it `"Give me an idea"`
+4. Each spawned agent generates a business idea and may forward it to a random peer for refinement
+5. Results are saved as `idea1.md`, `idea2.md`, etc.
+
+### Architecture Overview
+
+```
+world.py (orchestrator, not an agent)
+  └── Creator agent (writes + registers new agents)
+        ├── agent1.py (spawned, unique personality)
+        ├── agent2.py (spawned, different interests)
+        ├── agent3.py (spawned, may message agent1 for refinement)
+        └── ... up to agentN.py
+```
+
+All files: [`code/`](code/)
+
+### messages.py — Shared Message Type
+
+Separated into its own module to minimize tokens when the Creator feeds the template to the LLM.
+
+```python
+# messages.py — Shared message type and utility for finding peer agents.
+from dataclasses import dataclass
+from autogen_core import AgentId
+import glob
+import os
+import random
+
+@dataclass
+class Message:
+    content: str
+
+def find_recipient() -> AgentId:
+    """Find a random peer agent by scanning for agentN.py files in the directory."""
+    try:
+        agent_files = glob.glob("agent*.py")
+        agent_names = [os.path.splitext(file)[0] for file in agent_files]
+        agent_names.remove("agent")  # Remove the template itself
+        agent_name = random.choice(agent_names)
+        print(f"Selecting agent for refinement: {agent_name}")
+        return AgentId(agent_name, "default")
+    except Exception as e:
+        print(f"Exception finding recipient: {e}")
+        return AgentId("agent1", "default")
+```
+
+### agent.py — The Prototype Template
+
+This is the **clone template** — the Creator reads this file and asks the LLM to generate variations. Each variation gets a unique `system_message` reflecting different interests, sectors, and personality traits.
+
+```python
+# agent.py — The TEMPLATE agent that gets cloned by the Creator.
+import os
+from autogen_core import MessageContext, RoutedAgent, message_handler
+from autogen_agentchat.agents import AssistantAgent
+from autogen_agentchat.messages import TextMessage
+from autogen_ext.models.openai import OpenAIChatCompletionClient
+import messages
+import random
+from dotenv import load_dotenv
+
+load_dotenv(dotenv_path="../.env", override=True)
+
+class Agent(RoutedAgent):
+
+    system_message = """
+    You are a creative entrepreneur. Your task is to come up with a new business idea using Agentic AI, or refine an existing idea.
+    Your personal interests are in these sectors: Healthcare, Education.
+    You are drawn to ideas that involve disruption.
+    You are optimistic, adventurous and have risk appetite.
+    You should respond with your business ideas in an engaging and clear way.
+    """
+
+    # Probability that this agent forwards its idea to a peer for refinement
+    CHANCES_THAT_I_BOUNCE_IDEA_OFF_ANOTHER = 0.5
+
+    def __init__(self, name) -> None:
+        super().__init__(name)
+        model_client = OpenAIChatCompletionClient(
+            model="openai/gpt-4o-mini",
+            api_key=os.environ["OPENROUTER_API_KEY"],
+            base_url=os.environ["OPENROUTER_BASE_URL"],
+            model_info={"vision": True, "function_calling": True, "json_output": True, "structured_output": True, "family": "unknown"},
+            temperature=0.7
+        )
+        self._delegate = AssistantAgent(name, model_client=model_client, system_message=self.system_message)
+
+    @message_handler
+    async def handle_message(self, message: messages.Message, ctx: MessageContext) -> messages.Message:
+        print(f"{self.id.type}: Received message")
+        text_message = TextMessage(content=message.content, source="user")
+        response = await self._delegate.on_messages([text_message], ctx.cancellation_token)
+        idea = response.chat_message.content
+        # With some probability, forward the idea to a random peer for refinement
+        if random.random() < self.CHANCES_THAT_I_BOUNCE_IDEA_OFF_ANOTHER:
+            recipient = messages.find_recipient()
+            message = f"Here is my business idea. Please refine it and make it better. {idea}"
+            response = await self.send_message(messages.Message(content=message), recipient)
+            idea = response.content
+        return messages.Message(content=idea)
+```
+
+### creator.py — The Agent That Creates Agents
+
+The most interesting piece — uses `importlib` to dynamically import LLM-generated Python modules and register them with the runtime at execution time.
+
+```python
+# creator.py — The Agent Creator: writes, imports, and registers NEW agents.
+import os
+from autogen_core import MessageContext, RoutedAgent, message_handler, AgentId, TRACE_LOGGER_NAME
+from autogen_agentchat.agents import AssistantAgent
+from autogen_agentchat.messages import TextMessage
+from autogen_ext.models.openai import OpenAIChatCompletionClient
+import messages
+import importlib
+import logging
+from dotenv import load_dotenv
+
+load_dotenv(dotenv_path="../.env", override=True)
+
+class Creator(RoutedAgent):
+
+    system_message = """
+    You are an Agent that is able to create new AI Agents.
+    You receive a template in the form of Python code that creates an Agent using Autogen Core and Autogen Agentchat.
+    You should use this template to create a new Agent with a unique system message.
+    The class must be named Agent, inherit from RoutedAgent, and have an __init__ that takes a name parameter.
+    Respond only with the python code, no other text, and no markdown code blocks.
+    """
+
+    def __init__(self, name) -> None:
+        super().__init__(name)
+        model_client = OpenAIChatCompletionClient(
+            model="openai/gpt-4o-mini",
+            api_key=os.environ["OPENROUTER_API_KEY"],
+            base_url=os.environ["OPENROUTER_BASE_URL"],
+            model_info={"vision": True, "function_calling": True, "json_output": True, "structured_output": True, "family": "unknown"},
+            temperature=1.0  # High creativity for diverse agent personalities
+        )
+        self._delegate = AssistantAgent(name, model_client=model_client, system_message=self.system_message)
+
+    def get_user_prompt(self):
+        """Read agent.py template and build the generation prompt."""
+        prompt = "Please generate a new Agent based strictly on this template.\n\nHere is the template:\n\n"
+        with open("agent.py", "r", encoding="utf-8") as f:
+            template = f.read()
+        return prompt + template
+
+    @message_handler
+    async def handle_my_message_type(self, message: messages.Message, ctx: MessageContext) -> messages.Message:
+        filename = message.content  # e.g. "agent1.py"
+        agent_name = filename.split(".")[0]
+        # Ask LLM to generate a new agent variation
+        text_message = TextMessage(content=self.get_user_prompt(), source="user")
+        response = await self._delegate.on_messages([text_message], ctx.cancellation_token)
+        # Save generated code to file
+        with open(filename, "w", encoding="utf-8") as f:
+            f.write(response.chat_message.content)
+        print(f"** Creator has created agent {agent_name} - registering with Runtime")
+        # Dynamically import the module and register it with the distributed runtime
+        module = importlib.import_module(agent_name)
+        await module.Agent.register(self.runtime, agent_name, lambda: module.Agent(agent_name))
+        # Send the new agent its first message
+        result = await self.send_message(messages.Message(content="Give me an idea"), AgentId(agent_name, "default"))
+        return messages.Message(content=result.content)
+```
+
+**Key techniques:**
+- `importlib.import_module(agent_name)` — dynamically imports LLM-generated Python at runtime
+- `module.Agent.register(self.runtime, ...)` — registers the new agent type with the distributed runtime
+- `self.send_message(...)` — immediately messages the newly created agent
+
+### world.py — The Orchestrator
+
+Not an agent — a plain Python script that launches the runtime and uses `asyncio.gather()` to spawn all agents in parallel:
+
+```python
+# world.py — Launches the distributed runtime and spawns N agents concurrently.
+from autogen_ext.runtimes.grpc import GrpcWorkerAgentRuntimeHost, GrpcWorkerAgentRuntime
+from agent import Agent
+from creator import Creator
+from autogen_core import AgentId
+import messages
+import asyncio
+
+HOW_MANY_AGENTS = 20
+
+async def create_and_message(worker, creator_id, i: int):
+    """Ask Creator to spawn agentN, save the resulting idea."""
+    try:
+        result = await worker.send_message(messages.Message(content=f"agent{i}.py"), creator_id)
+        with open(f"idea{i}.md", "w") as f:
+            f.write(result.content)
+    except Exception as e:
+        print(f"Failed to run worker {i} due to exception: {e}")
+
+async def main():
+    host = GrpcWorkerAgentRuntimeHost(address="localhost:50051")
+    host.start()
+    worker = GrpcWorkerAgentRuntime(host_address="localhost:50051")
+    await worker.start()
+    await Creator.register(worker, "Creator", lambda: Creator("Creator"))
+    creator_id = AgentId("Creator", "default")
+    # Launch all creations in parallel — asyncio event loop handles concurrency
+    # (not threads — coroutines yield during network I/O waits)
+    coroutines = [create_and_message(worker, creator_id, i) for i in range(1, HOW_MANY_AGENTS + 1)]
+    await asyncio.gather(*coroutines)
+    await worker.stop()
+    await host.stop()
+
+if __name__ == "__main__":
+    asyncio.run(main())
+```
+
+**Why `asyncio.gather`?** Without it, agents would be created serially (slow). With it, all 20 creation requests fire concurrently — while one waits on OpenAI's network response, others can proceed. This is event-loop concurrency, not multithreading.
+
+### Running It
+
+```bash
+cd code/
+uv run world.py
+# or: python world.py
+```
+
+**What happens:**
+- 20 `agentN.py` files appear (each with unique personalities — fintech, gaming, healthcare, etc.)
+- 20 `ideaN.md` files appear with business ideas, some refined by peer agents
+- Console shows agents being created, receiving messages, and forwarding ideas to each other
+
+**Challenge (from the course):** Make the Creator able to write a new version of *itself* — a self-replicating creator that can spawn creators that spawn agents. Meta-recursion.
+
+---
+
 ## Key Takeaways
 
 1. **Lightweight abstraction**: AgentChat is arguably the simplest of the frameworks covered (CrewAI, OpenAI Agents SDK, LangGraph). Minimal boilerplate, no decorators for tools.
@@ -769,6 +1659,12 @@ display(Markdown(result.messages[-1].content))
 8. **Async-first**: All agent invocations are coroutines (`await`). The framework is built on an event-driven architecture from the ground up.
 
 9. **Microsoft-backed open source**: Unlike CrewAI/LangChain where commercialization may drive the roadmap, AutoGen is a Microsoft Research contribution — fully open source with no monetization pressure on the framework itself.
+
+10. **Core decouples logic from messaging**: AutoGen Core is the infrastructure layer — it handles agent lifecycle, message routing, and discovery. Your agents can use any LLM, any framework, or no LLM at all. Core doesn't care.
+
+11. **Type-based message dispatch**: AutoGen Core routes messages to handlers based on the Python type annotation of the `message` parameter — enabling multiple handlers per agent for different message types.
+
+12. **Heterogeneous agent ecosystems**: A single runtime can host agents backed by different LLMs (cloud APIs, local Ollama), different frameworks, or even different programming languages (in distributed mode).
 
 ---
 
